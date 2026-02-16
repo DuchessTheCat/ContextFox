@@ -1,4 +1,4 @@
-import { FileJson, FileText, Download, Play, Terminal } from "lucide-react";
+import { FileJson, FileText, Download, Play, Terminal, Eye } from "lucide-react";
 import { StoryState } from "../types";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -19,6 +19,7 @@ interface FileListProps {
   storyModel: string;
   setStoryModel: (model: string) => void;
   aidModels: string[];
+  onInspectCards: () => void;
 }
 
 export function FileList({
@@ -32,6 +33,7 @@ export function FileList({
   storyModel,
   setStoryModel,
   aidModels,
+  onInspectCards,
 }: FileListProps) {
   return (
     <div className="space-y-4">
@@ -77,9 +79,22 @@ export function FileList({
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2 ml-1">
-                  <FileJson className="w-3 h-3 text-emerald-400" /> Adventure Cards
-                </label>
+                <div className="flex items-center justify-between ml-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                    <FileJson className="w-3 h-3 text-emerald-400" /> Adventure Cards
+                  </label>
+                  {currentStory.cardsPath && (
+                    <button
+                      onClick={onInspectCards}
+                      disabled={!currentStory.accumulatedCards || currentStory.accumulatedCards.length === 0}
+                      className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-emerald-400 group flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-muted-foreground"
+                      title="Inspect Adventure Cards"
+                    >
+                      <Eye className="w-3 h-3" />
+                      <span className="text-[9px] font-semibold uppercase tracking-wider">Inspect</span>
+                    </button>
+                  )}
+                </div>
                 <button
                   onClick={selectCardsFile}
                   onDrop={handleCardsFileDrop}

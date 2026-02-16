@@ -1,7 +1,8 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Accordion from "@radix-ui/react-accordion";
-import { Settings2, X, Key, Terminal, Cpu, FileText, Files, User, Lightbulb, ChevronDown } from "lucide-react";
+import { Settings2, X, Key, Terminal, Cpu, FileText, Files, User, Lightbulb, ChevronDown, RotateCcw } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect";
+import { DEFAULT_PROMPTS, DEFAULT_TASK_MODELS } from "../lib/defaults";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -48,9 +49,19 @@ export function SettingsDialog({
           <div className="space-y-8">
             {/* API Key */}
             <div className="space-y-3">
-              <label className="text-[10px] font-semibold flex items-center gap-2 uppercase tracking-[0.2em] text-muted-foreground ml-1">
-                <Key className="w-3.5 h-3.5 text-indigo-400" /> OpenRouter API Key
-              </label>
+              <div className="flex items-center justify-between ml-1">
+                <label className="text-[10px] font-semibold flex items-center gap-2 uppercase tracking-[0.2em] text-muted-foreground">
+                  <Key className="w-3.5 h-3.5 text-indigo-400" /> OpenRouter API Key
+                </label>
+                <button
+                  onClick={() => setOpenrouterKey("")}
+                  className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-red-400 group flex items-center gap-1.5"
+                  title="Clear API Key"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="text-[9px] font-semibold uppercase tracking-wider">Clear</span>
+                </button>
+              </div>
               <div className="flex gap-3">
                 <input
                   type="password"
@@ -72,20 +83,43 @@ export function SettingsDialog({
 
             {/* Model Settings */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold flex items-center gap-2 uppercase tracking-widest text-foreground">
-                <Cpu className="w-5 h-5 text-indigo-400" /> AI Model Assignments
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold flex items-center gap-2 uppercase tracking-widest text-foreground">
+                  <Cpu className="w-5 h-5 text-indigo-400" /> AI Model Assignments
+                </h3>
+                <button
+                  onClick={() => setTaskModels(() => ({ ...DEFAULT_TASK_MODELS }))}
+                  className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-amber-400 group flex items-center gap-1.5"
+                  title="Reset All Models to Defaults"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="text-[9px] font-semibold uppercase tracking-wider">Reset</span>
+                </button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(taskModels).map(([task, currentModel]) => (
-                  <SearchableSelect 
-                    key={task}
-                    label={`${task} Model`}
-                    value={currentModel}
-                    onChange={(val: string) => setTaskModels((prev: any) => ({ ...prev, [task]: val }))}
-                    options={openrouterModels.length > 0 ? openrouterModels : [currentModel]}
-                    icon={task === 'perspective' || task === 'title' ? User : task === 'summary' ? FileText : Files}
-                  />
-                ))}
+                {Object.entries(taskModels).map(([task, currentModel]) => {
+                  // Format task name for display
+                  const formatTaskName = (name: string) => {
+                    if (name === 'plotEssentials') return 'Plot Essentials';
+                    if (name === 'coreSelf') return 'Core Self';
+                    return name.charAt(0).toUpperCase() + name.slice(1);
+                  };
+
+                  const modelOptions = openrouterModels.length > 0
+                    ? ["None", ...openrouterModels]
+                    : ["None", currentModel];
+
+                  return (
+                    <SearchableSelect
+                      key={task}
+                      label={`${formatTaskName(task)} Model`}
+                      value={currentModel}
+                      onChange={(val: string) => setTaskModels((prev: any) => ({ ...prev, [task]: val }))}
+                      options={modelOptions}
+                      icon={task === 'perspective' || task === 'title' ? User : task === 'summary' ? FileText : Files}
+                    />
+                  );
+                })}
               </div>
             </div>
 
@@ -93,29 +127,49 @@ export function SettingsDialog({
 
             {/* Prompt Settings */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold flex items-center gap-2 uppercase tracking-widest text-foreground">
-                <Lightbulb className="w-5 h-5 text-amber-400" /> System Prompts
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold flex items-center gap-2 uppercase tracking-widest text-foreground">
+                  <Lightbulb className="w-5 h-5 text-amber-400" /> System Prompts
+                </h3>
+                <button
+                  onClick={() => setPrompts(() => ({ ...DEFAULT_PROMPTS }))}
+                  className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-amber-400 group flex items-center gap-1.5"
+                  title="Reset All Prompts to Defaults"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="text-[9px] font-semibold uppercase tracking-wider">Reset</span>
+                </button>
+              </div>
               <Accordion.Root type="single" collapsible className="space-y-2">
-                {Object.entries(prompts).map(([task, prompt]) => (
-                  <Accordion.Item key={task} value={task} className="border border-border rounded-xl overflow-hidden bg-muted/5">
-                    <Accordion.Header>
-                      <Accordion.Trigger className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/10 transition-colors text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground group">
-                        {task} Prompt
-                        <ChevronDown className="w-4 h-4 group-data-[state=open]:rotate-180 transition-transform group-data-[state=open]:text-indigo-400" />
-                      </Accordion.Trigger>
-                    </Accordion.Header>
-                    <Accordion.Content className="animate-in slide-in-from-top-1 duration-200">
-                      <div className="p-4 bg-black/20">
-                        <textarea 
-                          value={prompt}
-                          onChange={(e) => setPrompts((prev: any) => ({ ...prev, [task]: e.target.value }))}
-                          className="w-full h-48 bg-transparent text-[11px] font-mono outline-none resize-none custom-scrollbar leading-relaxed"
-                        />
-                      </div>
-                    </Accordion.Content>
-                  </Accordion.Item>
-                ))}
+                {Object.entries(prompts).map(([task, prompt]) => {
+                  // Format task name for display
+                  const formatTaskName = (name: string) => {
+                    if (name === 'plotEssentials') return 'Plot Essentials';
+                    if (name === 'plotEssentialsWithContext') return 'Plot Essentials With Context';
+                    if (name === 'coreSelf') return 'Core Self';
+                    return name.charAt(0).toUpperCase() + name.slice(1);
+                  };
+
+                  return (
+                    <Accordion.Item key={task} value={task} className="border border-border rounded-xl overflow-hidden bg-muted/5">
+                      <Accordion.Header>
+                        <Accordion.Trigger className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/10 transition-colors text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground group">
+                          {formatTaskName(task)} Prompt
+                          <ChevronDown className="w-4 h-4 group-data-[state=open]:rotate-180 transition-transform group-data-[state=open]:text-indigo-400" />
+                        </Accordion.Trigger>
+                      </Accordion.Header>
+                      <Accordion.Content className="animate-in slide-in-from-top-1 duration-200">
+                        <div className="p-4 bg-black/20">
+                          <textarea
+                            value={prompt}
+                            onChange={(e) => setPrompts((prev: any) => ({ ...prev, [task]: e.target.value }))}
+                            className="w-full h-48 bg-transparent text-[11px] font-mono outline-none resize-none custom-scrollbar leading-relaxed"
+                          />
+                        </div>
+                      </Accordion.Content>
+                    </Accordion.Item>
+                  );
+                })}
               </Accordion.Root>
             </div>
           </div>

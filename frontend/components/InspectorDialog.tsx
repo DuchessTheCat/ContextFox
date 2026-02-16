@@ -7,6 +7,7 @@ interface InspectorDialogProps {
   onOpenChange: (open: boolean) => void;
   currentStory: StoryState;
   updateCurrentStory: (updates: Partial<StoryState>) => void;
+  onOpenCardsInspector: () => void;
 }
 
 export function InspectorDialog({
@@ -14,6 +15,7 @@ export function InspectorDialog({
   onOpenChange,
   currentStory,
   updateCurrentStory,
+  onOpenCardsInspector,
 }: InspectorDialogProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -32,55 +34,82 @@ export function InspectorDialog({
             </Dialog.Close>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-6">
-               <div className="space-y-2">
-                <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ml-1">Story Title</label>
-                <input 
-                  type="text"
-                  value={currentStory.storyTitle}
-                  onChange={(e) => updateCurrentStory({ storyTitle: e.target.value, name: e.target.value || currentStory.name })}
-                  className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl text-xs outline-none focus:ring-1 focus:ring-slate-700 transition-all"
-                />
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ml-1">Story Title</label>
+                  <input
+                    type="text"
+                    value={currentStory.storyTitle}
+                    onChange={(e) => updateCurrentStory({ storyTitle: e.target.value, name: e.target.value || currentStory.name })}
+                    className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl text-xs outline-none focus:ring-1 focus:ring-slate-700 transition-all"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ml-1">Perspective Character</label>
+                  <input
+                    type="text"
+                    value={currentStory.character}
+                    onChange={(e) => updateCurrentStory({ character: e.target.value })}
+                    className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl text-xs outline-none focus:ring-1 focus:ring-slate-700 transition-all"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ml-1">Last Line Processed</label>
+                  <input
+                    type="text"
+                    value={currentStory.lastLine}
+                    onChange={(e) => updateCurrentStory({ lastLine: e.target.value })}
+                    className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl text-xs outline-none focus:ring-1 focus:ring-slate-700 transition-all"
+                    placeholder="Search for this string to start after..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ml-1">Accumulated Summary</label>
+                  <textarea
+                    value={currentStory.accumulatedSummary}
+                    onChange={(e) => updateCurrentStory({ accumulatedSummary: e.target.value })}
+                    className="w-full h-64 p-4 bg-muted/20 border border-border rounded-xl text-[11px] font-mono outline-none focus:ring-1 focus:ring-slate-700 transition-all resize-none custom-scrollbar"
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ml-1">Perspective Character</label>
-                <input 
-                  type="text"
-                  value={currentStory.character}
-                  onChange={(e) => updateCurrentStory({ character: e.target.value })}
-                  className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl text-xs outline-none focus:ring-1 focus:ring-slate-700 transition-all"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ml-1">Last Line Processed</label>
-                <input
-                  type="text"
-                  value={currentStory.lastLine}
-                  onChange={(e) => updateCurrentStory({ lastLine: e.target.value })}
-                  className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl text-xs outline-none focus:ring-1 focus:ring-slate-700 transition-all"
-                  placeholder="Search for this string to start after..."
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ml-1">Accumulated Summary</label>
-                <textarea 
-                  value={currentStory.accumulatedSummary}
-                  onChange={(e) => updateCurrentStory({ accumulatedSummary: e.target.value })}
-                  className="w-full h-80 p-4 bg-muted/20 border border-border rounded-xl text-[11px] font-mono outline-none focus:ring-1 focus:ring-slate-700 transition-all resize-none custom-scrollbar"
-                />
+              <div className="flex flex-col h-full">
+                <div className="space-y-2 flex-1 flex flex-col">
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ml-1">Plot Essentials</label>
+                  <textarea
+                    value={currentStory.plotEssentials}
+                    onChange={(e) => updateCurrentStory({ plotEssentials: e.target.value })}
+                    placeholder="Plot essentials will appear here after processing..."
+                    className="flex-1 w-full p-4 bg-muted/20 border border-border rounded-xl text-[11px] font-mono outline-none focus:ring-1 focus:ring-slate-700 transition-all resize-none custom-scrollbar"
+                  />
+                </div>
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ml-1">Accumulated Cards JSON</label>
-              <textarea 
+              <div className="flex items-center justify-between ml-1">
+                <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Accumulated Cards JSON</label>
+                <button
+                  onClick={onOpenCardsInspector}
+                  className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-indigo-400 group flex items-center gap-1.5"
+                  title="Inspect Cards"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span className="text-[9px] font-semibold uppercase tracking-wider">Inspect</span>
+                </button>
+              </div>
+              <textarea
                 value={JSON.stringify(currentStory.accumulatedCards, null, 2)}
                 onChange={(e) => {
                   try {
-                    updateCurrentStory({ accumulatedCards: JSON.parse(e.target.value) });
-                  } catch (err) {}
+                    const parsed = JSON.parse(e.target.value);
+                    console.log("InspectorDialog: Parsed cards successfully", parsed);
+                    updateCurrentStory({ accumulatedCards: parsed });
+                  } catch (err) {
+                    console.log("InspectorDialog: JSON parse error (expected while typing)", err);
+                  }
                 }}
-                className="w-full h-full min-h-[600px] p-4 bg-muted/20 border border-border rounded-xl text-[11px] font-mono outline-none focus:ring-1 focus:ring-slate-700 transition-all resize-none custom-scrollbar"
+                className="w-full h-96 p-4 bg-muted/20 border border-border rounded-xl text-[11px] font-mono outline-none focus:ring-1 focus:ring-slate-700 transition-all resize-none custom-scrollbar"
               />
             </div>
           </div>

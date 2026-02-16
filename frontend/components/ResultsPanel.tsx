@@ -1,4 +1,4 @@
-import { FileJson, FileText, Download, Copy, CheckCircle2 } from "lucide-react";
+import { FileJson, FileText, Download, Copy, CheckCircle2, Eye } from "lucide-react";
 import { useState } from "react";
 import { StoryState } from "../types";
 
@@ -6,15 +6,18 @@ interface ResultsPanelProps {
   currentStory: StoryState;
   updateCurrentStory: (updates: Partial<StoryState>) => void;
   saveCards: () => void;
+  onOpenCardsInspector: () => void;
 }
 
 export function ResultsPanel({
   currentStory,
   updateCurrentStory,
   saveCards,
+  onOpenCardsInspector,
 }: ResultsPanelProps) {
   const [copiedSummary, setCopiedSummary] = useState(false);
   const [copiedCards, setCopiedCards] = useState(false);
+  const [copiedPlot, setCopiedPlot] = useState(false);
 
   const copyToClipboard = async (text: string, setCopied: (v: boolean) => void) => {
     await navigator.clipboard.writeText(text);
@@ -29,17 +32,17 @@ export function ResultsPanel({
           <div className="p-2 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
             <FileJson className="w-5 h-5 text-indigo-400" />
           </div>
-          <h2 className="text-xs font-semibold tracking-tight uppercase">Orchestrated Results</h2>
+          <h2 className="text-xs font-semibold tracking-tight uppercase">Results</h2>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="space-y-3">
           <div className="flex items-center justify-between ml-1">
             <label className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
               <FileText className="w-3.5 h-3.5 text-indigo-400" /> Accumulated Summary
             </label>
-            <button 
+            <button
               onClick={() => copyToClipboard(currentStory.accumulatedSummary, setCopiedSummary)}
               className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-indigo-400 group flex items-center gap-2"
               title="Copy Summary to Clipboard"
@@ -48,7 +51,7 @@ export function ResultsPanel({
               <span className="text-[10px] font-semibold uppercase tracking-wider">{copiedSummary ? "Copied" : "Copy"}</span>
             </button>
           </div>
-          <textarea 
+          <textarea
             value={currentStory.accumulatedSummary}
             onChange={(e) => updateCurrentStory({ accumulatedSummary: e.target.value })}
             placeholder="No summary generated yet..."
@@ -62,7 +65,15 @@ export function ResultsPanel({
               <FileJson className="w-3.5 h-3.5 text-emerald-400" /> Story Cards JSON
             </label>
             <div className="flex items-center gap-1">
-              <button 
+              <button
+                onClick={onOpenCardsInspector}
+                className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-indigo-400 group flex items-center gap-2"
+                title="Inspect Cards"
+              >
+                <Eye className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider">Inspect</span>
+              </button>
+              <button
                 onClick={() => copyToClipboard(JSON.stringify(currentStory.accumulatedCards, null, 2), setCopiedCards)}
                 className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-indigo-400 group flex items-center gap-2"
                 title="Copy Cards to Clipboard"
@@ -70,7 +81,7 @@ export function ResultsPanel({
                 {copiedCards ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />}
                 <span className="text-[10px] font-semibold uppercase tracking-wider">{copiedCards ? "Copied" : "Copy"}</span>
               </button>
-              <button 
+              <button
                 onClick={saveCards}
                 className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-emerald-400 group flex items-center gap-2"
                 title="Save Cards to File"
@@ -80,14 +91,40 @@ export function ResultsPanel({
               </button>
             </div>
           </div>
-          <textarea 
+          <textarea
             value={JSON.stringify(currentStory.accumulatedCards, null, 2)}
             onChange={(e) => {
               try {
-                updateCurrentStory({ accumulatedCards: JSON.parse(e.target.value) });
-              } catch (err) {}
+                const parsed = JSON.parse(e.target.value);
+                console.log("ResultsPanel: Parsed cards successfully", parsed);
+                updateCurrentStory({ accumulatedCards: parsed });
+              } catch (err) {
+                console.log("ResultsPanel: JSON parse error (expected while typing)", err);
+              }
             }}
             placeholder="[]"
+            className="w-full h-[500px] p-5 bg-muted/5 border border-border rounded-2xl text-[11px] font-mono outline-none focus:ring-1 focus:ring-slate-700 transition-all resize-none custom-scrollbar leading-relaxed"
+          />
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between ml-1">
+            <label className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+              <FileText className="w-3.5 h-3.5 text-amber-400" /> Plot Essentials
+            </label>
+            <button
+              onClick={() => copyToClipboard(currentStory.plotEssentials, setCopiedPlot)}
+              className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-amber-400 group flex items-center gap-2"
+              title="Copy Plot Essentials to Clipboard"
+            >
+              {copiedPlot ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />}
+              <span className="text-[10px] font-semibold uppercase tracking-wider">{copiedPlot ? "Copied" : "Copy"}</span>
+            </button>
+          </div>
+          <textarea
+            value={currentStory.plotEssentials}
+            onChange={(e) => updateCurrentStory({ plotEssentials: e.target.value })}
+            placeholder="No plot essentials generated yet..."
             className="w-full h-[500px] p-5 bg-muted/5 border border-border rounded-2xl text-[11px] font-mono outline-none focus:ring-1 focus:ring-slate-700 transition-all resize-none custom-scrollbar leading-relaxed"
           />
         </div>

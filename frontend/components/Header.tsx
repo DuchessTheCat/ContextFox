@@ -125,15 +125,30 @@ export function Header({
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-3 px-3 py-1 bg-muted/20 rounded-full border border-border">
+        <button
+          onClick={() => {
+            if (status.toLowerCase().includes("error")) {
+              alert(status);
+            }
+          }}
+          className={cn(
+            "flex items-center gap-3 px-3 py-1 bg-muted/20 rounded-full border border-border transition-all",
+            status.toLowerCase().includes("error") && "cursor-pointer hover:bg-muted/30"
+          )}
+          disabled={!status.toLowerCase().includes("error")}
+        >
           <div className={cn(
-            "w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]", 
-            isProcessing ? "bg-indigo-500 animate-pulse text-indigo-500" : "bg-emerald-500 text-emerald-500"
+            "w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]",
+            isProcessing
+              ? "bg-indigo-500 animate-pulse text-indigo-500"
+              : status.toLowerCase().includes("error")
+              ? "bg-red-500 text-red-500"
+              : "bg-emerald-500 text-emerald-500"
           )} />
           <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground truncate max-w-[150px]">
             {status}
           </span>
-        </div>
+        </button>
 
         <div className="w-px h-4 bg-border mx-1" />
 

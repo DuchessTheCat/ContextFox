@@ -1,17 +1,20 @@
 import { useState, useEffect, useCallback } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { writeFile, readTextFile } from "@tauri-apps/plugin-fs";
+import { writeFile, readTextFile, readFile } from "@tauri-apps/plugin-fs";
 import { load } from "@tauri-apps/plugin-store";
+import JSZip from "jszip";
 import { StoryState, Task } from "./types";
 import { Header } from "./components/Header";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { InspectorDialog } from "./components/InspectorDialog";
+import { CardsInspectorDialog } from "./components/CardsInspectorDialog";
 import { FileList } from "./components/FileList";
 import { TaskDetail } from "./components/TaskDetail";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { PipelineSidebar } from "./components/PipelineSidebar";
 import { IS_TAURI } from "./lib/utils";
 import { getOpenRouterModels, processCards } from "./lib/backend";
+import { DEFAULT_PROMPTS, DEFAULT_TASK_MODELS, DEFAULT_STORY_MODEL } from "./lib/defaults";
 
 
 const AID_MODELS = [
@@ -60,110 +63,9 @@ function getUnderlyingModel(aidModel: string): string {
 function App() {
   // Global Settings
   const [openrouterKey, setOpenrouterKey] = useState("");
-  const [storyModel, setStoryModel] = useState("Raven");
-  const [taskModels, setTaskModels] = useState({
-    perspective: "google/gemini-2.5-flash-lite",
-    title: "google/gemini-2.5-flash-lite",
-    characters: "anthropic/claude-sonnet-4.5",
-    locations: "anthropic/claude-sonnet-4.5",
-    concepts: "anthropic/claude-sonnet-4.5",
-    summary: "anthropic/claude-sonnet-4.5",
-  });
-  
-  const [prompts, setPrompts] = useState({
-    perspective: "Identify the main perspective character of this story.",
-    title: "Choose a fitting title for this story.",
-    characters: `
-Current story cards:     
-$cards
-    
-    
-Update the above story cards or write new ones for AI Dungeon for each character in the referenced story. Keep them ideal for LLM consumption, 1000 chars at most but the less the better. Use strong personality keywords opposed to complex personality descriptors. E.g. Kind-hearted, sweet, unforgiving, no buts or whens or anything there.
-
-Write the story cards like so: 
-
-*Charactername* is *concise summary of 1-2 lines*. 
-Personality: 3-7 Keywords (e.g: Mean, Devoted, Blunt, Chuunibyou, Trickster)
-Background: History, concise, avoid anything that may lead to repetition, cliche or action with LLMs. While you can include /major/ character changes or moment, avoid re-hashing the events from the story. Include relationships to other NPCs or $character if relevant.
-Good examples: 
-They grew up in a well-off family that owned an orchard, teaching them about the fruits of hard labor. 
-They sometimes tug their braid.
-Bad example: 
-They do things with practiced ease. 
-They often ask questions.
-
-In terms of triggers, choose both, triggers of them being mentioned (their first name for example) AND triggers of likely contexts they may show up in. E.g. their job, place of living, goal, nation and so forth.
-
-- Never edit data in brackets or configuration values. e.g. { updates: true }
-- Avoid highly cliche-inducing personality keywords, like possessive or obsessive. Those personalities are fine, just use less strong keywords.
-- Be proactive, feel free to generate interesting new characters inferred to exist from the story.
-- Their purpose is for them to be used by $model to roleplay as the character. Specialize them to $model's quirks.
-- Only send back character story cards you've changed. It is fine and expected that only a few characters are added or changed, or even none at all.`,
-    locations: `
-Current story cards:     
-$cards
-
-Based on the story given, update story cards that have meaningfully changed and generate new story cards for major, future-relevant locations. Always include the location name in the description of the location one or more times.
-
-In terms of triggers, choose both, triggers of words in the location name (their first name for example) AND triggers of likely words to come up relevant to this location (e.g. war, france, palace, home, hospital, winter) .
-
-- Keep descriptions concise, do not add events that happened as part of the story to the locations. Focus on physical descriptions and history referenced as being before the story / $character's relevance unless it is key to the location (e.g. they built it or destroyed it).
-- Be proactive, feel free to generate new locations inferred from the story or very likely to be visited soon.
-- Specialize it for $model.
-- Keep them to at most 1000 characters, but ideally they are much smaller than that.
-- Only send back location story cards you've changed. It is fine and expected that only a few locations are added or changed, or even none at all.\`,
-`,
-    concepts: `
-Current story cards:     
-$cards
-
-Based on the story, generate story cards for new concepts (such as a magic system) that are important for the story and different from the real world / common tropes or major factions, or update existing ones if necessary. 
-
-In terms of triggers, choose both, triggers of words in the concept/faction name (their first name for example) AND triggers of likely words to come up relevant to this card (e.g. war, france, palace, magic, mana, winter, leader's first name, kingdom name) .
-
-
-- Keep them to at most 1000 characters, but ideally they are much smaller than that.
-- Specialize it for $model.
-- Only send back concept/faction story cards you've changed. It is fine and expected that only a few concepts / factions are added or changed, or even none at all.
-`,
-    summary: `
-Story Cards: 
-$cards
-
-Current Summary:
-$lastSummary
-
-
-Based the given text, make a concise summary for an AI roleplaying game, from the perspective of $character.
-
-The summary should be complete, with no RELEVANT dataloss.
-Include:
-- Relationships / current statuses
-- Character building moments
-- Relevant interactions
-- Actions
-- Transformations
-- Changes in state of the character or possessions
-- and so forth included along with atmospheres, notable memories or particularly telling / cute character moments / things that reveal someone's personality.
-It should be done in a format ideal for the AI to derive the past while sticking to the original style as much as possible.
-
-Exclude events that are unlikely to ever come up again / aren't relevant to any character arcs, transformations that are already made irrelevant by later changes and so on.
-You shouldn't preserve things that are only part of the 'how' and not relevant for the future (e.g. exact process of transformation, method of winning the fight except if the method is likely to come up in the future) but absolutely should share the why's and who's of events.
-Stick to the 'You did thing, you met y, you then. You ...' format. Focus more on data directly related to the current state than the past, as mentioning changed data can cause AI hallucinations. If someone changed their haircolor thrice, for example, only mention that they changed their haircolor the first two times - mentioning the current color for the third.
-
-Keep to one concise blob of text. No formatting, headers, markdown or separate plot partitions or anything. Do not describe the current situation directly.
-
-Example: 
-
-You are name, a colossal white dragon who possesses the ability to shapeshift into a slender humanoid. You woke up in a damp but beautiful cave, surprised to be approached by a shivering girl, seeming terrified of you yet filled with determination.... You... You then... You met... They smiled as you told them about your pain, showing just how callous they are... They were... "...You're wrong. What I feel isn't hate, it is love..."... 
-And so forth.
-
-
-- If a last summary exists, add to that summary to create one complete summary, removing/adjusting irrelevant old data if fitting.
-- Avoid rehashing or describing anything currently in a story card.
-- Keep the summary below 10.000 characters
-`,
-  });
+  const [storyModel, setStoryModel] = useState(DEFAULT_STORY_MODEL);
+  const [taskModels, setTaskModels] = useState(DEFAULT_TASK_MODELS);
+  const [prompts, setPrompts] = useState(DEFAULT_PROMPTS);
 
   // Multi-Story State
   const [stories, setStories] = useState<Record<string, StoryState>>({
@@ -171,12 +73,17 @@ And so forth.
       id: "default",
       name: "Default Story",
       lastLine: "",
+      currentPart: 1,
       accumulatedSummary: "",
       accumulatedCards: [],
+      plotEssentials: "",
       character: "",
       storyTitle: "",
       storyPath: null,
-      cardsPath: null
+      cardsPath: null,
+      isZipFile: false,
+      excludedCardTitles: [],
+      includedCardTitles: []
     }
   });
   const [currentStoryId, setCurrentStoryId] = useState("default");
@@ -186,10 +93,11 @@ And so forth.
   // UI State
   const [showSettings, setShowSettings] = useState(false);
   const [showInspector, setShowInspector] = useState(false);
+  const [showCardsInspector, setShowCardsInspector] = useState(false);
   const [openrouterModels, setOpenrouterModels] = useState<string[]>([]);
   const [status, setStatus] = useState("Ready");
   const [isProcessing, setIsProcessing] = useState(false);
-  
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -268,10 +176,15 @@ And so forth.
 
   // Update current story helper
   const updateCurrentStory = (updates: Partial<StoryState>) => {
-    setStories(prev => ({
-      ...prev,
-      [currentStoryId]: { ...prev[currentStoryId], ...updates }
-    }));
+    console.log("updateCurrentStory called with:", updates);
+    setStories(prev => {
+      const updated = {
+        ...prev,
+        [currentStoryId]: { ...prev[currentStoryId], ...updates }
+      };
+      console.log("Stories updated:", updated[currentStoryId]);
+      return updated;
+    });
   };
 
   const createNewStory = () => {
@@ -280,12 +193,17 @@ And so forth.
       id,
       name: `New Story ${Object.keys(stories).length + 1}`,
       lastLine: "",
+      currentPart: 1,
       accumulatedSummary: "",
       accumulatedCards: [],
+      plotEssentials: "",
       character: "",
       storyTitle: "",
       storyPath: null,
-      cardsPath: null
+      cardsPath: null,
+      isZipFile: false,
+      excludedCardTitles: [],
+      includedCardTitles: []
     };
     setStories(prev => ({ ...prev, [id]: newStory }));
     setCurrentStoryId(id);
@@ -323,20 +241,76 @@ And so forth.
     }
   }
 
+  async function loadZipFile(fileData: ArrayBuffer, fileName: string) {
+    fileName.length;
+    const zip = new JSZip();
+    const loaded = await zip.loadAsync(fileData);
+
+    const parts = new Map<number, string>();
+    const partFiles: { num: number; file: JSZip.JSZipObject }[] = [];
+
+    // Find all part-XX.md files
+    loaded.forEach((relativePath, file) => {
+      const match = relativePath.match(/part-(\d+)\.md$/i);
+      if (match && !file.dir) {
+        partFiles.push({ num: parseInt(match[1]), file });
+      }
+    });
+
+    // Sort by part number
+    partFiles.sort((a, b) => a.num - b.num);
+
+    // Load all parts
+    for (const { num, file } of partFiles) {
+      const content = await file.async("text");
+      parts.set(num, content);
+    }
+
+    if (parts.size === 0) {
+      throw new Error("No part-XX.md files found in zip");
+    }
+
+    return { parts, totalParts: parts.size };
+  }
+
   async function selectStoryFile() {
     if (IS_TAURI) {
       const selected = await open({
         multiple: false,
-        filters: [{ name: "Markdown", extensions: ["md"] }],
+        filters: [
+          { name: "Story Files", extensions: ["md", "zip"] }
+        ],
       });
       if (selected && !Array.isArray(selected)) {
         if (selected !== currentStory.storyPath) {
-          updateCurrentStory({
-            storyPath: selected,
-            lastLine: "",
-            name: selected.split(/[\\/]/).pop()?.replace(".md", "") || currentStory.name
-          });
-          setStatus("Story file loaded (reset line counter)");
+          if (selected.endsWith('.zip')) {
+            try {
+              const uint8Array = await readFile(selected);
+              const buffer = uint8Array.buffer;
+              const { parts } = await loadZipFile(buffer, selected);
+
+              updateCurrentStory({
+                storyPath: selected,
+                lastLine: "",
+                currentPart: 1,
+                isZipFile: true,
+                zipParts: parts,
+                name: selected.split(/[\\/]/).pop()?.replace(".zip", "") || currentStory.name
+              });
+              setStatus(`Story zip loaded (${parts.size} parts, reset to part 1)`);
+            } catch (err) {
+              setStatus(`Error loading zip: ${err}`);
+            }
+          } else {
+            updateCurrentStory({
+              storyPath: selected,
+              lastLine: "",
+              currentPart: 1,
+              isZipFile: false,
+              name: selected.split(/[\\/]/).pop()?.replace(".md", "") || currentStory.name
+            });
+            setStatus("Story file loaded (reset line counter)");
+          }
         } else {
           setStatus("Story file already selected");
         }
@@ -344,18 +318,39 @@ And so forth.
     } else {
       const input = document.createElement("input");
       input.type = "file";
-      input.accept = ".md";
+      input.accept = ".md,.zip";
       input.onchange = async (e) => {
         const file = (e.target as HTMLInputElement).files?.[0];
         if (file) {
-          const content = await file.text();
-          updateCurrentStory({
-            storyPath: file.name,
-            storyContent: content,
-            lastLine: "",
-            name: file.name.replace(".md", "") || currentStory.name
-          });
-          setStatus("Story file loaded");
+          if (file.name.endsWith('.zip')) {
+            try {
+              const buffer = await file.arrayBuffer();
+              const { parts } = await loadZipFile(buffer, file.name);
+
+              updateCurrentStory({
+                storyPath: file.name,
+                lastLine: "",
+                currentPart: 1,
+                isZipFile: true,
+                zipParts: parts,
+                name: file.name.replace(".zip", "") || currentStory.name
+              });
+              setStatus(`Story zip loaded (${parts.size} parts)`);
+            } catch (err) {
+              setStatus(`Error loading zip: ${err}`);
+            }
+          } else {
+            const content = await file.text();
+            updateCurrentStory({
+              storyPath: file.name,
+              storyContent: content,
+              lastLine: "",
+              currentPart: 1,
+              isZipFile: false,
+              name: file.name.replace(".md", "") || currentStory.name
+            });
+            setStatus("Story file loaded");
+          }
         }
       };
       input.click();
@@ -369,31 +364,66 @@ And so forth.
     const files = e.dataTransfer.files;
     if (files.length > 0) {
       const file = files[0];
-      if (file.name.endsWith('.md')) {
-        if (IS_TAURI) {
-          const path = (file as any).path || file.name;
-          if (path !== currentStory.storyPath) {
+      if (file.name.endsWith('.md') || file.name.endsWith('.zip')) {
+        if (file.name.endsWith('.zip')) {
+          try {
+            const buffer = await file.arrayBuffer();
+            const { parts } = await loadZipFile(buffer, file.name);
+
+            if (IS_TAURI) {
+              const path = (file as any).path || file.name;
+              updateCurrentStory({
+                storyPath: path,
+                lastLine: "",
+                currentPart: 1,
+                isZipFile: true,
+                zipParts: parts,
+                name: file.name.replace(".zip", "") || currentStory.name
+              });
+            } else {
+              updateCurrentStory({
+                storyPath: file.name,
+                lastLine: "",
+                currentPart: 1,
+                isZipFile: true,
+                zipParts: parts,
+                name: file.name.replace(".zip", "") || currentStory.name
+              });
+            }
+            setStatus(`Story zip loaded (${parts.size} parts, reset to part 1)`);
+          } catch (err) {
+            setStatus(`Error loading zip: ${err}`);
+          }
+        } else if (file.name.endsWith('.md')) {
+          if (IS_TAURI) {
+            const path = (file as any).path || file.name;
+            if (path !== currentStory.storyPath) {
+              updateCurrentStory({
+                storyPath: path,
+                lastLine: "",
+                currentPart: 1,
+                isZipFile: false,
+                name: file.name.replace(".md", "") || currentStory.name
+              });
+              setStatus("Story file loaded (reset line counter)");
+            } else {
+              setStatus("Story file already selected");
+            }
+          } else {
+            const content = await file.text();
             updateCurrentStory({
-              storyPath: path,
+              storyPath: file.name,
+              storyContent: content,
               lastLine: "",
+              currentPart: 1,
+              isZipFile: false,
               name: file.name.replace(".md", "") || currentStory.name
             });
-            setStatus("Story file loaded (reset line counter)");
-          } else {
-            setStatus("Story file already selected");
+            setStatus("Story file loaded");
           }
-        } else {
-          const content = await file.text();
-          updateCurrentStory({
-            storyPath: file.name,
-            storyContent: content,
-            lastLine: "",
-            name: file.name.replace(".md", "") || currentStory.name
-          });
-          setStatus("Story file loaded");
         }
       } else {
-        setStatus("Error: Please drop a .md file");
+        setStatus("Error: Please drop a .md or .zip file");
       }
     }
   };
@@ -405,8 +435,18 @@ And so forth.
         filters: [{ name: "JSON", extensions: ["json"] }],
       });
       if (selected && !Array.isArray(selected)) {
-        updateCurrentStory({ cardsPath: selected });
-        setStatus("Cards file loaded");
+        try {
+          const content = await readTextFile(selected);
+          const cards = JSON.parse(content);
+          updateCurrentStory({
+            cardsPath: selected,
+            accumulatedCards: cards
+          });
+          setStatus(`Cards file loaded (${cards.length} cards)`);
+        } catch (err: any) {
+          console.error("Error loading cards:", err);
+          setStatus(`Error loading cards: ${err?.message || err}`);
+        }
       }
     } else {
       const input = document.createElement("input");
@@ -443,8 +483,18 @@ And so forth.
       if (file.name.endsWith('.json')) {
         if (IS_TAURI) {
           const path = (file as any).path || file.name;
-          updateCurrentStory({ cardsPath: path });
-          setStatus("Cards file loaded");
+          try {
+            const content = await readTextFile(path);
+            const cards = JSON.parse(content);
+            updateCurrentStory({
+              cardsPath: path,
+              accumulatedCards: cards
+            });
+            setStatus(`Cards file loaded (${cards.length} cards)`);
+          } catch (err: any) {
+            console.error("Error loading cards:", err);
+            setStatus(`Error loading cards: ${err?.message || err}`);
+          }
         } else {
           const content = await file.text();
           try {
@@ -486,6 +536,7 @@ And so forth.
       { id: 'locations', name: 'Generating Locations', status: 'waiting' },
       { id: 'concepts', name: 'Generating Concepts/Factions', status: 'waiting' },
       { id: 'summary', name: 'Generating Summary', status: 'waiting' },
+      { id: 'plotEssentials', name: 'Generating Plot Essentials', status: 'waiting' },
     ];
     setTasks(initialTasks);
     setSelectedTask(null);
@@ -510,10 +561,16 @@ And so forth.
       const result = await processCards({
         storyContent,
         lastLineText: currentStory.lastLine,
+        currentPart: currentStory.currentPart || 1,
+        isZipFile: currentStory.isZipFile || false,
+        zipParts: currentStory.zipParts,
         lastSummary: currentStory.accumulatedSummary,
         lastCards: JSON.stringify(currentStory.accumulatedCards),
+        lastPlotEssentials: currentStory.plotEssentials || "",
         lastCharacter: currentStory.character,
         lastStoryTitle: currentStory.storyTitle,
+        excludedCardTitles: currentStory.excludedCardTitles || [],
+        includedCardTitles: currentStory.includedCardTitles || [],
         openrouterKey,
         storyModel: underlyingModel,
         perspectiveModel: taskModels.perspective,
@@ -522,12 +579,17 @@ And so forth.
         locationsModel: taskModels.locations,
         conceptsModel: taskModels.concepts,
         summaryModel: taskModels.summary,
+        plotEssentialsModel: taskModels.plotEssentials,
+        coreSelfModel: taskModels.coreSelf,
         perspectivePrompt: prompts.perspective,
         titlePrompt: prompts.title,
         charactersPrompt: prompts.characters,
         locationsPrompt: prompts.locations,
         conceptsPrompt: prompts.concepts,
         summaryPrompt: prompts.summary,
+        plotEssentialsPrompt: prompts.plotEssentials,
+        plotEssentialsWithContextPrompt: prompts.plotEssentialsWithContext,
+        coreSelfPrompt: prompts.coreSelf,
         onTaskUpdate: (update) => {
           setTasks(prev => {
             const exists = prev.some(t => t.id === update.id);
@@ -556,7 +618,9 @@ And so forth.
       updateCurrentStory({
         accumulatedCards: updatedCards,
         accumulatedSummary: updatedSummary,
+        plotEssentials: result.plot_essentials,
         lastLine: result.last_line,
+        currentPart: result.current_part,
         character: result.character,
         storyTitle: result.story_title,
         name: result.story_title || currentStory.name
@@ -627,11 +691,49 @@ And so forth.
         setPrompts={setPrompts}
       />
 
-      <InspectorDialog 
+      <InspectorDialog
         open={showInspector}
         onOpenChange={setShowInspector}
         currentStory={currentStory}
         updateCurrentStory={updateCurrentStory}
+        onOpenCardsInspector={() => setShowCardsInspector(true)}
+      />
+
+      <CardsInspectorDialog
+        open={showCardsInspector}
+        onOpenChange={setShowCardsInspector}
+        cards={currentStory.accumulatedCards}
+        excludedCardTitles={currentStory.excludedCardTitles || []}
+        includedCardTitles={currentStory.includedCardTitles || []}
+        onToggleExclude={(title) => {
+          const card = currentStory.accumulatedCards.find(c => c.title === title);
+          if (!card) return;
+
+          const isBrainCard = card.title.toLowerCase().includes("brain") || (card.type && card.type.toLowerCase() === "brain");
+          const isDefaultExcluded = card.title.includes("Configure") || isBrainCard;
+
+          const currentExcluded = currentStory.excludedCardTitles || [];
+          const currentIncluded = currentStory.includedCardTitles || [];
+
+          if (isDefaultExcluded) {
+            // Toggle default excluded card via included list
+            if (currentIncluded.includes(title)) {
+              // Remove from included (back to excluded)
+              updateCurrentStory({ includedCardTitles: currentIncluded.filter(t => t !== title) });
+            } else {
+              // Add to included
+              updateCurrentStory({ includedCardTitles: [...currentIncluded, title] });
+            }
+          } else {
+            // Toggle regular card via excluded list
+            if (currentExcluded.includes(title)) {
+              updateCurrentStory({ excludedCardTitles: currentExcluded.filter(t => t !== title) });
+            } else {
+              updateCurrentStory({ excludedCardTitles: [...currentExcluded, title] });
+            }
+          }
+        }}
+        onUpdateCards={(cards) => updateCurrentStory({ accumulatedCards: cards })}
       />
 
       <TaskDetail 
@@ -649,7 +751,7 @@ And so forth.
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-8 custom-scrollbar">
           <div className="max-w-[1200px] mx-auto space-y-8">
-            <FileList 
+            <FileList
               currentStory={currentStory}
               selectStoryFile={selectStoryFile}
               selectCardsFile={selectCardsFile}
@@ -660,12 +762,14 @@ And so forth.
               storyModel={storyModel}
               setStoryModel={setStoryModel}
               aidModels={AID_MODELS}
+              onInspectCards={() => setShowCardsInspector(true)}
             />
 
-            <ResultsPanel 
+            <ResultsPanel
               currentStory={currentStory}
               updateCurrentStory={updateCurrentStory}
               saveCards={() => downloadResult(JSON.stringify(currentStory.accumulatedCards, null, 2), "story_cards.json")}
+              onOpenCardsInspector={() => setShowCardsInspector(true)}
             />
           </div>
         </main>
