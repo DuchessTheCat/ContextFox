@@ -2,7 +2,7 @@ import { FileJson, FileText, Download, Play, Terminal, Eye } from "lucide-react"
 import { StoryState } from "../types";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { SearchableSelect } from "./SearchableSelect";
+import { SearchableSelect } from "./ui/SearchableSelect";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

@@ -1,8 +1,10 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Accordion from "@radix-ui/react-accordion";
+import * as React from "react";
 import { Settings2, X, Key, Terminal, Cpu, FileText, Files, User, Lightbulb, ChevronDown, RotateCcw, ShieldAlert } from "lucide-react";
-import { SearchableSelect } from "./SearchableSelect";
-import { DEFAULT_PROMPTS, DEFAULT_TASK_MODELS, DEFAULT_REFUSAL_PROMPT } from "../lib/defaults";
+import { SearchableSelect } from "./ui/SearchableSelect";
+import { DEFAULT_PROMPTS, DEFAULT_REFUSAL_PROMPT } from "../config/prompts";
+import { DEFAULT_TASK_MODELS, MODEL_PRESETS } from "../config/models";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -12,6 +14,10 @@ interface SettingsDialogProps {
   fetchModels: (key: string) => void;
   taskModels: Record<string, string>;
   setTaskModels: (updater: (prev: any) => any) => void;
+  selectedPreset: string | null;
+  setSelectedPreset: (preset: string | null) => void;
+  customPresets: Record<string, any>;
+  setCustomPresets: (presets: Record<string, any>) => void;
   openrouterModels: string[];
   prompts: Record<string, string>;
   setPrompts: (updater: (prev: any) => any) => void;
@@ -27,12 +33,45 @@ export function SettingsDialog({
   fetchModels,
   taskModels,
   setTaskModels,
+  selectedPreset,
+  setSelectedPreset,
+  customPresets,
+  setCustomPresets,
   openrouterModels,
   prompts,
   setPrompts,
   refusalPrompt,
   setRefusalPrompt,
 }: SettingsDialogProps) {
+  // When dialog opens, ensure taskModels match the selected preset
+  React.useEffect(() => {
+    if (open && selectedPreset) {
+      const modelsToLoad = customPresets[selectedPreset] || MODEL_PRESETS[selectedPreset as keyof typeof MODEL_PRESETS];
+      setTaskModels(() => ({ ...modelsToLoad }));
+    }
+  }, [open]);
+
+  const selectPreset = (presetName: keyof typeof MODEL_PRESETS) => {
+    setSelectedPreset(presetName);
+
+    // Load from custom presets if exists, otherwise use default preset
+    const modelsToLoad = customPresets[presetName] || MODEL_PRESETS[presetName as keyof typeof MODEL_PRESETS];
+    setTaskModels(() => ({ ...modelsToLoad }));
+  };
+
+  const handleModelChange = (task: string, value: string) => {
+    const newModels = { ...taskModels, [task]: value };
+    setTaskModels(() => newModels);
+
+    // Save to custom presets for current preset
+    if (selectedPreset) {
+      setCustomPresets({
+        ...customPresets,
+        [selectedPreset]: newModels
+      });
+    }
+  };
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -92,7 +131,13 @@ export function SettingsDialog({
                   <Cpu className="w-5 h-5 text-indigo-400" /> AI Model Assignments
                 </h3>
                 <button
-                  onClick={() => setTaskModels(() => ({ ...DEFAULT_TASK_MODELS }))}
+                  onClick={() => {
+                    // Clear all custom presets
+                    setCustomPresets({});
+                    // Reset to default models
+                    setTaskModels(() => ({ ...DEFAULT_TASK_MODELS }));
+                    setSelectedPreset("default");
+                  }}
                   className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-amber-400 group flex items-center gap-1.5"
                   title="Reset All Models to Defaults"
                 >
@@ -100,6 +145,51 @@ export function SettingsDialog({
                   <span className="text-[9px] font-semibold uppercase tracking-wider">Reset</span>
                 </button>
               </div>
+
+              {/* Model Presets Tab Bar */}
+              <div className="flex gap-1 p-1 bg-muted/20 rounded-xl border border-border">
+                <button
+                  onClick={() => selectPreset('cheap')}
+                  className={`flex-1 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                    selectedPreset === 'cheap'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'hover:bg-muted/40 text-muted-foreground'
+                  }`}
+                >
+                  Cheap
+                </button>
+                <button
+                  onClick={() => selectPreset('default')}
+                  className={`flex-1 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                    selectedPreset === 'default'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'hover:bg-muted/40 text-muted-foreground'
+                  }`}
+                >
+                  Default
+                </button>
+                <button
+                  onClick={() => selectPreset('expensive')}
+                  className={`flex-1 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                    selectedPreset === 'expensive'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'hover:bg-muted/40 text-muted-foreground'
+                  }`}
+                >
+                  Expensive
+                </button>
+                <button
+                  onClick={() => selectPreset('veryExpensive')}
+                  className={`flex-1 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                    selectedPreset === 'veryExpensive'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'hover:bg-muted/40 text-muted-foreground'
+                  }`}
+                >
+                  Very Expensive
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.entries(taskModels).map(([task, currentModel]) => {
                   // Format task name for display
@@ -118,7 +208,7 @@ export function SettingsDialog({
                       key={task}
                       label={`${formatTaskName(task)} Model`}
                       value={currentModel}
-                      onChange={(val: string) => setTaskModels((prev: any) => ({ ...prev, [task]: val }))}
+                      onChange={(val: string) => handleModelChange(task, val)}
                       options={modelOptions}
                       icon={task === 'perspective' || task === 'title' ? User : task === 'summary' ? FileText : Files}
                     />

@@ -1,11 +1,17 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { Eye, X } from "lucide-react";
+import * as React from "react";
+import { Eye, X, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
 import { StoryState } from "../types";
+import { loadFileContents } from "../lib/storage";
+import { IS_TAURI } from "../lib/utils";
+import { readTextFile } from "@tauri-apps/plugin-fs";
+import { SearchableSelect } from "./ui/SearchableSelect";
 
 interface InspectorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentStory: StoryState;
+  currentStoryId: string;
   updateCurrentStory: (updates: Partial<StoryState>) => void;
   onOpenCardsInspector: () => void;
   cardsInspectorOpen?: boolean;
@@ -15,10 +21,100 @@ export function InspectorDialog({
   open,
   onOpenChange,
   currentStory,
+  currentStoryId,
   updateCurrentStory,
   onOpenCardsInspector,
   cardsInspectorOpen,
 }: InspectorDialogProps) {
+  const [lineValidation, setLineValidation] = React.useState<'found' | 'not-found' | null>(null);
+  const [loadedContent, setLoadedContent] = React.useState<{ storyContent?: string; zipParts?: Map<number, string> }>({});
+
+  // Load content from IndexedDB or disk when dialog opens
+  React.useEffect(() => {
+    if (!open) return;
+
+    const loadContent = async () => {
+      try {
+        console.log('[InspectorDialog] Loading content for story:', currentStoryId);
+        // Try loading from IndexedDB first
+        const cached = await loadFileContents(currentStoryId);
+        console.log('[InspectorDialog] Cached data:', cached);
+
+        if (cached) {
+          const loaded: { storyContent?: string; zipParts?: Map<number, string> } = {};
+
+          if (cached.storyContent) {
+            loaded.storyContent = cached.storyContent;
+          }
+
+          if (cached.zipParts) {
+            // Convert plain object back to Map
+            loaded.zipParts = new Map(Object.entries(cached.zipParts).map(([k, v]) => [parseInt(k), v]));
+            console.log('[InspectorDialog] Loaded zipParts Map:', loaded.zipParts);
+          }
+
+          setLoadedContent(loaded);
+        }
+
+        // If Tauri and we have a path, try loading from disk
+        if (IS_TAURI && currentStory.storyPath) {
+          if (currentStory.isZipFile && currentStory.zipParts instanceof Map) {
+            // Already have zipParts in memory
+            setLoadedContent({ zipParts: currentStory.zipParts });
+          } else if (!currentStory.isZipFile && currentStory.storyContent) {
+            // Already have content in memory
+            setLoadedContent({ storyContent: currentStory.storyContent });
+          } else if (!currentStory.isZipFile) {
+            // Try loading .md file from disk
+            try {
+              const content = await readTextFile(currentStory.storyPath);
+              setLoadedContent({ storyContent: content });
+            } catch (err) {
+              console.error("Failed to load story content:", err);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load file contents:", err);
+      }
+    };
+
+    loadContent();
+  }, [open, currentStoryId, currentStory.storyPath, currentStory.isZipFile, currentStory.storyContent, currentStory.zipParts]);
+
+  // Validate line whenever lastLine changes
+  React.useEffect(() => {
+    if (!currentStory.lastLine || currentStory.lastLine.trim().length === 0) {
+      setLineValidation(null);
+      return;
+    }
+
+    // Check if line exists in story content or zipParts
+    let contentToSearch = '';
+
+    // Use loaded content or current story content
+    const storyContent = loadedContent.storyContent || currentStory.storyContent;
+    const zipParts = loadedContent.zipParts || currentStory.zipParts;
+
+    if (storyContent) {
+      contentToSearch = storyContent;
+    } else if (zipParts instanceof Map && zipParts.size > 0) {
+      // Search across all zip parts
+      const allParts = Array.from(zipParts.values()).join('\n');
+      contentToSearch = allParts;
+    }
+
+    if (contentToSearch.length > 0) {
+      if (contentToSearch.includes(currentStory.lastLine)) {
+        setLineValidation('found');
+      } else {
+        setLineValidation('not-found');
+      }
+    } else {
+      setLineValidation(null);
+    }
+  }, [currentStory.lastLine, currentStory.storyContent, currentStory.zipParts, loadedContent]);
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -58,14 +154,66 @@ export function InspectorDialog({
                   />
                 </div>
                 <div className="space-y-2">
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ml-1">Last File Processed</label>
+                  {(() => {
+                    const zipParts = loadedContent.zipParts || currentStory.zipParts;
+                    if (currentStory.isZipFile && zipParts instanceof Map && zipParts.size > 0) {
+                      const partOptions = Array.from(zipParts.keys()).sort((a, b) => a - b).map(partNum => `Part ${partNum} of ${zipParts.size}`);
+                      const currentValue = `Part ${currentStory.currentPart} of ${zipParts.size}`;
+                      return (
+                        <SearchableSelect
+                          value={currentValue}
+                          onChange={(val: string) => {
+                            const match = val.match(/Part (\d+) of/);
+                            if (match) {
+                              updateCurrentStory({ currentPart: parseInt(match[1]) });
+                            }
+                          }}
+                          options={partOptions}
+                        />
+                      );
+                    } else {
+                      return (
+                        <div className="w-full px-4 py-3 bg-muted/20 border border-red-500 rounded-xl text-xs flex items-center gap-2 text-red-400">
+                          <AlertTriangle className="w-4 h-4" />
+                          <span>Load a zip file first to set last file processed</span>
+                        </div>
+                      );
+                    }
+                  })()}
+                </div>
+                <div className="space-y-2">
                   <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ml-1">Last Line Processed</label>
-                  <input
-                    type="text"
-                    value={currentStory.lastLine}
-                    onChange={(e) => updateCurrentStory({ lastLine: e.target.value })}
-                    className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl text-xs outline-none focus:ring-1 focus:ring-slate-700 transition-all"
-                    placeholder="Search for this string to start after..."
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={currentStory.lastLine}
+                      onChange={(e) => updateCurrentStory({ lastLine: e.target.value })}
+                      className={`w-full px-4 py-3 pr-10 bg-muted/20 border rounded-xl text-xs outline-none focus:ring-1 transition-all ${
+                        lineValidation === 'found'
+                          ? 'border-green-500 focus:ring-green-500'
+                          : lineValidation === 'not-found'
+                          ? 'border-red-500 focus:ring-red-500'
+                          : 'border-border focus:ring-slate-700'
+                      }`}
+                      placeholder="Search for this string to start after..."
+                    />
+                    {lineValidation && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        {lineValidation === 'found' ? (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-red-500" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {lineValidation === 'found' && (
+                    <p className="text-[10px] text-green-500 ml-1">Line found</p>
+                  )}
+                  {lineValidation === 'not-found' && (
+                    <p className="text-[10px] text-red-500 ml-1">Line not found</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ml-1">Accumulated Summary</label>

@@ -1,0 +1,67 @@
+/**
+ * Handles filtering and categorization of story cards
+ */
+
+import { StoryCard } from "../../types";
+
+export function isBrainCard(card: StoryCard): boolean {
+  return (
+    card.title.toLowerCase().includes("brain") ||
+    (typeof card.type === "string" && card.type.toLowerCase() === "brain")
+  );
+}
+
+export function isDefaultExcluded(card: StoryCard): boolean {
+  return card.title.includes("Configure") || isBrainCard(card);
+}
+
+export function isExcluded(
+  card: StoryCard,
+  excludedCardTitles: string[],
+  includedCardTitles: string[]
+): boolean {
+  // If explicitly included, override default exclusion
+  if (includedCardTitles.includes(card.title)) {
+    return false;
+  }
+  // Check if default excluded or user excluded
+  return isDefaultExcluded(card) || excludedCardTitles.includes(card.title);
+}
+
+export function separateCards(
+  cards: StoryCard[],
+  excludedCardTitles: string[],
+  includedCardTitles: string[]
+): { excludedCards: StoryCard[]; regularCards: StoryCard[] } {
+  const excludedCards = cards.filter((c) =>
+    isExcluded(c, excludedCardTitles, includedCardTitles)
+  );
+  const regularCards = cards.filter(
+    (c) => !isExcluded(c, excludedCardTitles, includedCardTitles)
+  );
+
+  return { excludedCards, regularCards };
+}
+
+export function mergeCards(
+  existingCards: StoryCard[],
+  newCards: StoryCard[]
+): StoryCard[] {
+  const merged = [...existingCards];
+
+  for (const newCard of newCards) {
+    const existing = merged.find((c) => c.title === newCard.title);
+    if (existing) {
+      existing.keys = newCard.keys;
+      existing.value = newCard.value;
+    } else {
+      merged.push(newCard);
+    }
+  }
+
+  return merged;
+}
+
+export function stripCardsForContext(cards: StoryCard[]): { title: string; value: string }[] {
+  return cards.map((c) => ({ title: c.title, value: c.value }));
+}

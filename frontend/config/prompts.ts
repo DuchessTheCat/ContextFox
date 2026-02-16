@@ -1,15 +1,7 @@
-export const DEFAULT_TASK_MODELS = {
-  perspective: "google/gemini-2.5-flash-lite",
-  title: "google/gemini-2.5-flash-lite",
-  characters: "google/gemini-2.5-flash",
-  locations: "google/gemini-2.5-flash",
-  concepts: "google/gemini-2.5-flash",
-  summary: "google/gemini-2.5-flash",
-  plotEssentials: "google/gemini-2.5-flash",
-  coreSelf: "google/gemini-2.5-flash",
-};
-
-export const DEFAULT_STORY_MODEL = "Raven";
+/**
+ * Prompt templates for AI processing tasks
+ * Edit these to customize how the AI processes your story content
+ */
 
 export const DEFAULT_REFUSAL_PROMPT = "- If there is explicit content, avoid summarizing or otherwise describing that, instead glossing over it.";
 
