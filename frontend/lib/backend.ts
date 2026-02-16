@@ -97,8 +97,8 @@ async function callOpenRouter(apiKey: string, model: string, prompt: string, con
 
 const PERSPECTIVE_HARD_RULES = "\n\nReturn ONLY a JSON object in this format: { \"character\": \"name\" }";
 const TITLE_HARD_RULES = "\n\nReturn ONLY a JSON object in this format: { \"title\": \"...\" }";
-const CARDS_HARD_RULES = "\n\nReturn ONLY a JSON object with a \"cards\" key containing an array of story cards. For each card, use \"value\" for the description. Format: { \"cards\": [ { \"keys\": \"trigger1, trigger2\", \"value\": \"Detailed description of what this is\", \"type\": \"character/location/concept\", \"title\": \"Name\" } ] }";
-const SUMMARY_HARD_RULES = "\n\nReturn ONLY a JSON object with the complete \"summary\" key containing the text of the final summary (including the previous summary, whether updated or unchanged): { \"summary\": \"...\" }";
+const CARDS_HARD_RULES = "\n\nReturn ONLY a JSON object with a \"cards\" key containing an array of story cards. For each card, use \"value\" for the description. Format: { \"cards\": [ { \"keys\": \"trigger1, trigger2\", \"value\": \"Detailed description of what this is\", \"type\": \"character/location/concept/faction\", \"title\": \"Name\" } ] }";
+const SUMMARY_HARD_RULES = "\n\nReturn ONLY a JSON object with the complete \"summary\" key containing the text of the final summary (ALWAYS include the current summary in that): { \"summary\": \"...\" }";
 const CORE_SELF_HARD_RULES = "\n\nReturn ONLY a JSON object in this format: { \"coreSelfUpdates\": [ { \"title\": \"exact card title\", \"core_self\": \"2-5 sentence description\" } ] }";
 
 export interface ProcessCardsParams {

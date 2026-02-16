@@ -1,12 +1,12 @@
 export const DEFAULT_TASK_MODELS = {
   perspective: "google/gemini-2.5-flash-lite",
   title: "google/gemini-2.5-flash-lite",
-  characters: "anthropic/claude-sonnet-4.5",
-  locations: "anthropic/claude-sonnet-4.5",
-  concepts: "anthropic/claude-sonnet-4.5",
-  summary: "anthropic/claude-sonnet-4.5",
-  plotEssentials: "anthropic/claude-sonnet-4.5",
-  coreSelf: "google/gemini-2.5-pro",
+  characters: "google/gemini-2.5-flash",
+  locations: "google/gemini-2.5-flash",
+  concepts: "google/gemini-2.5-flash",
+  summary: "google/gemini-2.5-flash",
+  plotEssentials: "google/gemini-2.5-flash",
+  coreSelf: "google/gemini-2.5-flash",
 };
 
 export const DEFAULT_STORY_MODEL = "Raven";
@@ -78,11 +78,11 @@ In terms of keys (triggers), choose both, triggers of words in the concept/facti
 Story Cards:
 $cards
 
-Current Summary:
+Summary to Amend:
 $lastSummary
 
 
-Based the given text, make a concise summary for an AI roleplaying game, from the perspective of $character.
+Based the given text, make / add to a concise summary for an AI roleplaying game, from the perspective of $character.
 
 The summary should be complete, with no RELEVANT dataloss.
 Include:
@@ -107,7 +107,7 @@ You are full name, also known as nickname, a colossal white dragon who possesses
 And so forth.
 
 
-- If a last summary exists, add to that summary to create one complete summary and return the full combined summary, removing/adjusting irrelevant old data if fitting.
+- If a current summary exists, use that as the start of this summary, editing it to follow t
 - Avoid rehashing or describing anything currently in a story card.
 - Keep the summary below 10.000 characters
 `,
@@ -151,7 +151,7 @@ $lastSummary
 Current Story Cards (including all character Brain cards):
 $cards
 
-Based on the story summary and current story cards, edit or add a 'Core Self' where appropriate for Brain-type cards. The core self indicates what $model should use to generate thoughts for this character in 2-5 sentences. Keep it concise.
+Based on the story summary and current story cards, edit or add a 'Core Self' where appropriate for Brain-type cards. The core self indicates what $model should use to generate thoughts for this character in 2-4 sentences. Keep it concise.
 
 Example core_self:
 My name is Bob, I secretly hate donuts but I am hiding this from Dunkan. I am kind but calculating, often thinking about the well-being of others.
