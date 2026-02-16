@@ -98,7 +98,7 @@ async function callOpenRouter(apiKey: string, model: string, prompt: string, con
 const PERSPECTIVE_HARD_RULES = "\n\nReturn ONLY a JSON object in this format: { \"character\": \"name\" }";
 const TITLE_HARD_RULES = "\n\nReturn ONLY a JSON object in this format: { \"title\": \"...\" }";
 const CARDS_HARD_RULES = "\n\nReturn ONLY a JSON object with a \"cards\" key containing an array of story cards. For each card, use \"value\" for the description. Format: { \"cards\": [ { \"keys\": \"trigger1, trigger2\", \"value\": \"Detailed description of what this is\", \"type\": \"character/location/concept\", \"title\": \"Name\" } ] }";
-const SUMMARY_HARD_RULES = "\n\nReturn ONLY a JSON object with the complete \"summary\" key containing the text of the summary: { \"summary\": \"...\" }";
+const SUMMARY_HARD_RULES = "\n\nReturn ONLY a JSON object with the complete \"summary\" key containing the text of the final summary (including the previous summary, whether updated or unchanged): { \"summary\": \"...\" }";
 const CORE_SELF_HARD_RULES = "\n\nReturn ONLY a JSON object in this format: { \"coreSelfUpdates\": [ { \"title\": \"exact card title\", \"core_self\": \"2-5 sentence description\" } ] }";
 
 export interface ProcessCardsParams {
@@ -556,9 +556,13 @@ export async function processCards(params: ProcessCardsParams) {
   // Re-combine regular cards with excluded cards
   const finalCards = [...regularCards, ...excludedCards];
 
-  // 4. Plot Essentials request (sequential, after summary)
-  let newPlotEssentials = lastPlotEssentials;
+  // 4. Plot Essentials and Core Self run in parallel (after cards are ready)
+  const parallelTasks = [];
+
+  // Setup Plot Essentials task
   if (plotEssentialsModel !== "None") {
+    parallelTasks.push((async () => {
+    let plotResult = lastPlotEssentials;
     // Use different prompt based on whether we have existing plot essentials
     const hasExistingPlotEssentials = lastPlotEssentials && typeof lastPlotEssentials === 'string' && lastPlotEssentials.trim().length > 0;
     const plotPrompt = hasExistingPlotEssentials ? plotEssentialsWithContextPrompt : plotEssentialsPrompt;
@@ -622,27 +626,30 @@ export async function processCards(params: ProcessCardsParams) {
           plotValue = String(plotValue);
         }
 
-        newPlotEssentials = plotValue;
+        plotResult = plotValue;
       } catch (parseError) {
         // If JSON parsing fails, try to extract plotEssentials field manually
         const plotMatch = plotRes.match(/"plotEssentials"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
         if (plotMatch) {
           // Unescape the extracted string
-          newPlotEssentials = plotMatch[1]
+          plotResult = plotMatch[1]
             .replace(/\\n/g, '\n')
             .replace(/\\"/g, '"')
             .replace(/\\\\/g, '\\');
         } else {
           // Fallback: use the raw response
-          newPlotEssentials = plotRes;
+          plotResult = plotRes;
         }
       }
     }
+    return { type: 'plot' as const, result: plotResult };
+    })());
   }
 
-  // 5. Core Self Populator/Enhancer (runs at the very end)
-  let updatedFinalCards = finalCards;
+  // Setup Core Self task
   if (coreSelfModel !== "None") {
+    parallelTasks.push((async () => {
+    let cardsResult = finalCards;
     // Get only Brain type cards for the context (with full description)
     const brainCards = finalCards.filter(c => isBrainCard(c));
     const brainCardsWithDesc = brainCards.map(c => ({
@@ -703,7 +710,7 @@ export async function processCards(params: ProcessCardsParams) {
 
         if (Array.isArray(coreSelfJson.coreSelfUpdates)) {
           // Merge core_self updates into brain cards
-          updatedFinalCards = finalCards.map(card => {
+          cardsResult = finalCards.map(card => {
             const update = coreSelfJson.coreSelfUpdates.find((u: any) => u.title === card.title);
             if (update && isBrainCard(card)) {
               let existingDesc = card.description || "";
@@ -746,6 +753,22 @@ export async function processCards(params: ProcessCardsParams) {
         console.error(`Failed to parse core self response:`, e);
         onTaskUpdate({ id: `coreSelf${partIndicator}`, status: "error", output: `Parse error: ${String(e)}` });
       }
+    }
+    return { type: 'coreSelf' as const, result: cardsResult };
+    })());
+  }
+
+  // Wait for both tasks to complete and gather results
+  const results = await Promise.all(parallelTasks);
+
+  let newPlotEssentials = lastPlotEssentials;
+  let updatedFinalCards = finalCards;
+
+  for (const result of results) {
+    if (result.type === 'plot') {
+      newPlotEssentials = result.result;
+    } else if (result.type === 'coreSelf') {
+      updatedFinalCards = result.result;
     }
   }
 

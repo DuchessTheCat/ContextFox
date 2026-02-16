@@ -37,7 +37,7 @@ Bad example:
 They do things with practiced ease.
 They often ask questions.
 
-In terms of triggers, choose both, triggers of them being mentioned (their first name for example) AND triggers of likely contexts they may show up in. E.g. their job, place of living, goal, nation and so forth.
+In terms of keys (triggers), choose both, triggers of them being mentioned (their first name for example) AND triggers of likely contexts they may show up in. E.g. their job, place of living, goal, nation and so forth. Use at minimum 3 triggers per cards, but around 10 is usually better.
 
 - Never edit data in brackets or configuration values. e.g. { updates: true }
 - Avoid highly cliche-inducing personality keywords, like possessive or obsessive. Those personalities are fine, just use less strong keywords.
@@ -51,7 +51,7 @@ $cards
 
 Based on the story given, update story cards that have meaningfully changed and generate new story cards for major, future-relevant locations. Always include the location name in the description of the location one or more times.
 
-In terms of triggers, choose both, triggers of words in the location name (their first name for example) AND triggers of likely words to come up relevant to this location (e.g. war, france, palace, home, hospital, winter) .
+In terms of keys (triggers), choose both, triggers of words in the location name (their first name for example) AND triggers of likely words to come up relevant to this location (e.g. war, france, palace, home, hospital, winter). Use at minimum 3 triggers per cards, but around 10 is usually better.
 
 - Keep descriptions concise, do not add events that happened as part of the story to the locations. Focus on physical descriptions and history referenced as being before the story / $character's relevance unless it is key to the location (e.g. they built it or destroyed it).
 - Be proactive, feel free to generate new locations inferred from the story or very likely to be visited soon.
@@ -66,7 +66,7 @@ $cards
 
 Based on the story, generate story cards for new concepts (such as a magic system) that are important for the story and different from the real world / common tropes or major factions, or update existing ones if necessary.
 
-In terms of triggers, choose both, triggers of words in the concept/faction name (their first name for example) AND triggers of likely words to come up relevant to this card (e.g. war, france, palace, magic, mana, winter, leader's first name, kingdom name) .
+In terms of keys (triggers), choose both, triggers of words in the concept/faction name (their first name for example) AND triggers of likely words to come up relevant to this card (e.g. war, france, palace, magic, mana, winter, leader's first name, kingdom name). Use at minimum 3 triggers per cards, but around 10 is usually better.
 
 
 - Keep them to at most 1000 characters, but ideally they are much smaller than that.
@@ -112,7 +112,7 @@ And so forth.
 - Keep the summary below 10.000 characters
 `,
 
-  plotEssentials: `Based on the story content, identify and track the key plot essentials that are critical for story continuation.
+  plotEssentials: `Based on the story content, create a plot essentials text to track current statuses / plots and expected events relevant for future plot development.
 
 Include:
 - Active plot threads and unresolved conflicts
@@ -124,12 +124,12 @@ Include:
 - Important world rules
 - Likely or interesting random events for the future
 
-Format this with markdown. Focus on actionable elements that the AI should remember and potentially reference or resolve in future story generation.`,
+Format this with markdown. Focus on actionable elements that $model should remember and potentially reference or resolve in future story generation.`,
 
   plotEssentialsWithContext: `Current Plot Essentials:
 $lastPlotEssentials
 
-Based on the new story content, update the plot essentials above. Remove any that have been resolved or are no longer relevant, update existing ones if they've progressed, and add new ones that emerged.
+Based on the new story content, update the plot essentials above. Remove any information that has been resolved or are no longer relevant, update existing information if it has changed, and add new information that emerged.
 
 Include:
 - Active plot threads and unresolved conflicts
@@ -141,7 +141,9 @@ Include:
 - Important world rules
 - Likely or interesting random events for the future
 
-Format this with markdown. Focus on actionable elements that the AI should remember and potentially reference or resolve in future story generation.`,
+Format this with markdown. Focus on actionable elements that $model should remember and potentially reference or resolve in future story generation.
+
+Include the full plot essentials text.`,
 
   coreSelf: `Story Summary:
 $lastSummary
@@ -156,5 +158,7 @@ My name is Bob, I secretly hate donuts but I am hiding this from Dunkan. I am ki
 
 Only return Brain cards that need their core_self updated or added. Each card should include:
 - title: The exact card title
-- core_self: The 2-5 sentence core self description`,
+- core_self: The concise 2-4 sentence core self description
+
+Never include current status or a recent event unless it profoundly changed their way of thinking.`,
 };
