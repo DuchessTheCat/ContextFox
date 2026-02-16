@@ -178,9 +178,16 @@ function App() {
   const updateCurrentStory = (updates: Partial<StoryState>) => {
     console.log("updateCurrentStory called with:", updates);
     setStories(prev => {
+      const story = { ...prev[currentStoryId], ...updates };
+
+      // Convert zipParts Map to plain object for storage
+      if (story.zipParts && story.zipParts instanceof Map) {
+        story.zipParts = Object.fromEntries(story.zipParts) as any;
+      }
+
       const updated = {
         ...prev,
-        [currentStoryId]: { ...prev[currentStoryId], ...updates }
+        [currentStoryId]: story
       };
       console.log("Stories updated:", updated[currentStoryId]);
       return updated;
@@ -550,9 +557,12 @@ function App() {
       }
 
       // Convert zipParts back to Map if it's a plain object (from storage)
-      let zipPartsMap = currentStory.zipParts;
+      let zipPartsMap: Map<number, string> | undefined = currentStory.zipParts;
       if (currentStory.zipParts && !(currentStory.zipParts instanceof Map)) {
-        zipPartsMap = new Map(Object.entries(currentStory.zipParts).map(([k, v]) => [parseInt(k), v as string]));
+        // Convert plain object back to Map with numeric keys
+        zipPartsMap = new Map(
+          Object.entries(currentStory.zipParts).map(([k, v]) => [parseInt(k, 10), v as string])
+        );
       }
 
       const result = await processCards({
