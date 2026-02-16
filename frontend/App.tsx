@@ -544,25 +544,40 @@ function App() {
       const underlyingModel = getUnderlyingModel(storyModel);
 
       let storyContent = currentStory.storyContent;
+      let zipPartsMap: Map<number, string> | undefined = currentStory.zipParts;
+
+      // Reload file from disk if in Tauri mode
       if (IS_TAURI && currentStory.storyPath) {
-        try {
-          storyContent = await readTextFile(currentStory.storyPath);
-        } catch (err) {
-          throw new Error(`Failed to read story file: ${err}`);
+        if (currentStory.isZipFile && currentStory.storyPath.endsWith('.zip')) {
+          // Reload zip file
+          try {
+            const uint8Array = await readFile(currentStory.storyPath);
+            const buffer = uint8Array.buffer;
+            const { parts } = await loadZipFile(buffer, currentStory.storyPath);
+            zipPartsMap = parts;
+          } catch (err) {
+            throw new Error(`Failed to read zip file: ${err}`);
+          }
+        } else {
+          // Regular text file
+          try {
+            storyContent = await readTextFile(currentStory.storyPath);
+          } catch (err) {
+            throw new Error(`Failed to read story file: ${err}`);
+          }
+        }
+      } else {
+        // Browser mode or no path - use cached data
+        if (currentStory.zipParts && !(currentStory.zipParts instanceof Map)) {
+          // Convert plain object back to Map with numeric keys
+          zipPartsMap = new Map(
+            Object.entries(currentStory.zipParts).map(([k, v]) => [parseInt(k, 10), v as string])
+          );
         }
       }
 
-      if (!storyContent) {
+      if (!storyContent && !zipPartsMap) {
         throw new Error("Story content missing (re-select file)");
-      }
-
-      // Convert zipParts back to Map if it's a plain object (from storage)
-      let zipPartsMap: Map<number, string> | undefined = currentStory.zipParts;
-      if (currentStory.zipParts && !(currentStory.zipParts instanceof Map)) {
-        // Convert plain object back to Map with numeric keys
-        zipPartsMap = new Map(
-          Object.entries(currentStory.zipParts).map(([k, v]) => [parseInt(k, 10), v as string])
-        );
       }
 
       const result = await processCards({
