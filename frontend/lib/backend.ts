@@ -289,6 +289,7 @@ export async function processCards(params: ProcessCardsParams) {
               // Append refusal prompt before the hard rules (at end of soft rules)
               currentPrompt = prompt + "\n\n" + refusalPrompt;
             }
+            continue; // Explicitly continue to next attempt
           } else {
             return { status: "rejected" as const, reason: e };
           }
@@ -413,7 +414,9 @@ export async function processCards(params: ProcessCardsParams) {
             // Append refusal prompt before the hard rules (at end of soft rules)
             currentPrompt = t.prompt + "\n\n" + refusalPrompt;
           }
+          continue; // Explicitly continue to next attempt
         }
+        // On second attempt, will fall through and return rejected
       }
     }
     return { id: t.id, type: t.type, status: "rejected" as const, reason: lastError };
@@ -537,8 +540,15 @@ export async function processCards(params: ProcessCardsParams) {
         }
       }
     } else {
+      // Task failed after retries
       onTaskUpdate({ id: res.id, status: "error", output: String(res.reason) });
-      throw res.reason;
+
+      // Only throw for critical tasks (summary)
+      if (res.type === 'summary') {
+        throw res.reason;
+      }
+      // For card tasks (characters, locations, concepts), just log and continue
+      console.warn(`Non-critical task ${res.id} failed, continuing without it:`, res.reason);
     }
   }
 
@@ -607,6 +617,7 @@ export async function processCards(params: ProcessCardsParams) {
             const plotHardRules = '\n\nReturn ONLY a JSON object in this format: { "plotEssentials": "..." }';
             currentPlotPrompt = preparePrompt(plotPrompt + "\n\n" + refusalPrompt, plotHardRules);
           }
+          continue; // Explicitly continue to next attempt
         } else {
           onTaskUpdate({ id: `plotEssentials${partIndicator}`, status: "error", output: String(e) });
           throw e;
@@ -694,6 +705,7 @@ export async function processCards(params: ProcessCardsParams) {
             // Append refusal prompt before the hard rules (at end of soft rules)
             currentCoreSelfPrompt = coreSelfPromptPrepared + "\n\n" + refusalPrompt + CORE_SELF_HARD_RULES;
           }
+          continue; // Explicitly continue to next attempt
         } else {
           onTaskUpdate({ id: `coreSelf${partIndicator}`, status: "error", output: String(e) });
           // Don't throw - just log error and continue
