@@ -249,9 +249,33 @@ export async function processCards(params: ProcessCardsParams) {
       output: "",
     });
 
-    const [resPerspResult, resTitleResult] = await Promise.allSettled([
-      callOpenRouter(openrouterKey, perspectiveModel, pPerspFull, storyContent),
-      callOpenRouter(openrouterKey, titleModel, pTitleFull, storyContent),
+    // Retry logic for perspective and title
+    const callWithRetry = async (name: string, model: string, prompt: string) => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await callOpenRouter(openrouterKey, model, prompt, storyContent);
+          // Retry on empty response
+          if (!res || res.trim().length === 0) {
+            if (attempt === 0) {
+              console.warn(`Empty response for ${name}, retrying...`);
+              continue;
+            }
+          }
+          return { status: "fulfilled" as const, value: res };
+        } catch (e: any) {
+          if (attempt === 0) {
+            console.warn(`Retrying ${name} after error:`, e);
+          } else {
+            return { status: "rejected" as const, reason: e };
+          }
+        }
+      }
+      return { status: "rejected" as const, reason: new Error("Max retries exceeded") };
+    };
+
+    const [resPerspResult, resTitleResult] = await Promise.all([
+      callWithRetry("perspective", perspectiveModel, pPerspFull),
+      callWithRetry("title", titleModel, pTitleFull),
     ]);
 
     if (resPerspResult.status === "fulfilled") {
@@ -338,12 +362,30 @@ export async function processCards(params: ProcessCardsParams) {
   });
 
   const allResults = await Promise.all(tasksInfo.map(async (t) => {
-    try {
-      const res = await callOpenRouter(openrouterKey, t.model, t.prompt, storyContent);
-      return { id: t.id, type: t.type, status: "fulfilled" as const, value: res };
-    } catch (e: any) {
-      return { id: t.id, type: t.type, status: "rejected" as const, reason: e };
+    let lastError: any = null;
+    // Try twice on error
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await callOpenRouter(openrouterKey, t.model, t.prompt, storyContent);
+
+        // Check for empty response on critical tasks
+        const isCriticalTask = t.type === 'summary';
+        if (isCriticalTask && (!res || res.trim().length === 0)) {
+          if (attempt === 0) {
+            console.warn(`Empty response for critical task ${t.id}, retrying...`);
+            continue; // Retry
+          }
+        }
+
+        return { id: t.id, type: t.type, status: "fulfilled" as const, value: res, attempt };
+      } catch (e: any) {
+        lastError = e;
+        if (attempt === 0) {
+          console.warn(`Retrying ${t.id} after error:`, e);
+        }
+      }
     }
+    return { id: t.id, type: t.type, status: "rejected" as const, reason: lastError };
   }));
 
   // Process card results
@@ -355,8 +397,22 @@ export async function processCards(params: ProcessCardsParams) {
       onTaskUpdate({ id: res.id, status: "completed", output: res.value });
 
       if (res.type === 'cards') {
+        // Check if response is empty or whitespace
+        if (!res.value || res.value.trim().length === 0) {
+          console.warn(`Empty response for ${res.id}, skipping card generation`);
+          onTaskUpdate({ id: res.id, status: "error", output: "Empty response from AI" });
+          continue;
+        }
+
         try {
           const extractedJson = extractJson(res.value);
+
+          if (!extractedJson || extractedJson.trim().length === 0) {
+            console.warn(`No JSON found in response for ${res.id}, skipping card generation`);
+            onTaskUpdate({ id: res.id, status: "error", output: "No JSON found in response" });
+            continue;
+          }
+
           let json;
           try {
             json = JSON.parse(extractedJson);
@@ -369,7 +425,9 @@ export async function processCards(params: ProcessCardsParams) {
             try {
               json = JSON.parse(fixedJson);
             } catch (secondError) {
-              throw new Error(`Failed to parse card JSON even after attempting fixes: ${secondError}. Raw response: ${res.value}`);
+              console.error(`Failed to parse card JSON for ${res.id}:`, secondError);
+              onTaskUpdate({ id: res.id, status: "error", output: `Parse error: ${secondError}` });
+              continue;
             }
           }
 
@@ -386,7 +444,9 @@ export async function processCards(params: ProcessCardsParams) {
             });
           }
         } catch (e) {
-          throw new Error(`Failed to parse card JSON: ${e}. Raw response: ${res.value}`);
+          console.error(`Error processing cards for ${res.id}:`, e);
+          onTaskUpdate({ id: res.id, status: "error", output: String(e) });
+          continue;
         }
       } else if (res.type === 'summary') {
         try {
@@ -444,10 +504,36 @@ export async function processCards(params: ProcessCardsParams) {
       output: "",
     });
 
-    try {
-      const plotRes = await callOpenRouter(openrouterKey, plotEssentialsModel, preparedPlotPrompt, storyContent);
-      onTaskUpdate({ id: `plotEssentials${partIndicator}`, status: "completed", output: plotRes });
+    // Retry logic for plot essentials
+    let plotRes: string = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        plotRes = await callOpenRouter(openrouterKey, plotEssentialsModel, preparedPlotPrompt, storyContent);
 
+        // Retry on empty response
+        if (!plotRes || plotRes.trim().length === 0) {
+          if (attempt === 0) {
+            console.warn(`Empty response for plot essentials, retrying...`);
+            continue;
+          } else {
+            onTaskUpdate({ id: `plotEssentials${partIndicator}`, status: "error", output: "Empty response after retry" });
+            break;
+          }
+        }
+
+        onTaskUpdate({ id: `plotEssentials${partIndicator}`, status: "completed", output: plotRes });
+        break;
+      } catch (e: any) {
+        if (attempt === 0) {
+          console.warn(`Retrying plot essentials after error:`, e);
+        } else {
+          onTaskUpdate({ id: `plotEssentials${partIndicator}`, status: "error", output: String(e) });
+          throw e;
+        }
+      }
+    }
+
+    if (plotRes && plotRes.trim().length > 0) {
       try {
         const plotJson = JSON.parse(extractJson(plotRes));
         newPlotEssentials = plotJson.plotEssentials || plotRes;
@@ -465,9 +551,6 @@ export async function processCards(params: ProcessCardsParams) {
           newPlotEssentials = plotRes;
         }
       }
-    } catch (e: any) {
-      onTaskUpdate({ id: `plotEssentials${partIndicator}`, status: "error", output: String(e) });
-      throw e;
     }
   }
 
