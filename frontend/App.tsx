@@ -15,6 +15,7 @@ import { PipelineSidebar } from "./components/PipelineSidebar";
 import { IS_TAURI } from "./lib/utils";
 import { getOpenRouterModels, processCards } from "./lib/backend";
 import { DEFAULT_PROMPTS, DEFAULT_TASK_MODELS, DEFAULT_STORY_MODEL } from "./lib/defaults";
+import { saveFileContents, loadFileContents, deleteFileContents } from "./lib/storage";
 
 
 const AID_MODELS = [
@@ -295,6 +296,11 @@ function App() {
               const uint8Array = await readFile(selected);
               const buffer = uint8Array.buffer;
               const { parts } = await loadZipFile(buffer, selected);
+
+              // Save to IndexedDB
+              await saveFileContents(currentStoryId, {
+                zipParts: Object.fromEntries(parts)
+              });
 
               updateCurrentStory({
                 storyPath: selected,
@@ -581,7 +587,7 @@ function App() {
       }
 
       const result = await processCards({
-        storyContent,
+        storyContent: storyContent || "",
         lastLineText: currentStory.lastLine,
         currentPart: currentStory.currentPart || 1,
         isZipFile: currentStory.isZipFile || false,
