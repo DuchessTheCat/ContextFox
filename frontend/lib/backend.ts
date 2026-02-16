@@ -435,7 +435,6 @@ export async function processCards(params: ProcessCardsParams) {
             for (const match of cardMatches) {
               // Try to extract complete card data around each title
               const titleIndex = match.index!;
-              const beforeTitle = extractedJson.substring(Math.max(0, titleIndex - 200), titleIndex);
               const afterTitle = extractedJson.substring(titleIndex, Math.min(extractedJson.length, titleIndex + 1000));
 
               const keysMatch = afterTitle.match(/"keys"\s*:\s*"([^"]*)"/);
