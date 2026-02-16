@@ -161,54 +161,48 @@ export async function processCards(params: ProcessCardsParams) {
   let newPart = currentPart;
   let newLastLine = "";
 
+  const totalParts = isZipFile && zipParts ? zipParts.size : 1;
+  const partIndicator = isZipFile && zipParts ? ` (${currentPart}/${totalParts})` : "";
+
   if (isZipFile && zipParts) {
-    // Multi-part processing
+    // Multi-part processing - process ONE part at a time
     const currentPartContent = zipParts.get(currentPart);
     if (!currentPartContent) {
       throw new Error(`Part ${currentPart} not found in zip file`);
     }
 
     // Find content after lastLineText in current part
-    let currentPartRemaining = currentPartContent;
     if (lastLineText) {
       const pos = currentPartContent.lastIndexOf(lastLineText);
       if (pos !== -1) {
-        currentPartRemaining = currentPartContent.substring(pos + lastLineText.length).trim();
+        storyContent = currentPartContent.substring(pos + lastLineText.length).trim();
+      } else {
+        storyContent = currentPartContent;
       }
+    } else {
+      storyContent = currentPartContent;
     }
-
-    // Build content: remaining of current part + all subsequent parts
-    const contentParts: string[] = [];
-    if (currentPartRemaining) {
-      contentParts.push(currentPartRemaining);
-    }
-
-    // Add all subsequent parts
-    for (let i = currentPart + 1; i <= zipParts.size; i++) {
-      const nextPart = zipParts.get(i);
-      if (nextPart) {
-        contentParts.push(nextPart);
-      }
-    }
-
-    storyContent = contentParts.join("\n\n");
 
     if (!storyContent) {
-      throw new Error("No new content to process");
-    }
-
-    // Determine new last line and part
-    const allLines = storyContent.trimEnd().split("\n");
-    newLastLine = allLines[allLines.length - 1] || "";
-
-    // Find which part the last line is in
-    for (let i = zipParts.size; i >= currentPart; i--) {
-      const partContent = zipParts.get(i);
-      if (partContent && partContent.includes(newLastLine)) {
-        newPart = i;
-        break;
+      // Current part is exhausted, move to next part
+      if (currentPart < zipParts.size) {
+        newPart = currentPart + 1;
+        const nextPartContent = zipParts.get(newPart);
+        if (nextPartContent) {
+          storyContent = nextPartContent;
+          newLastLine = ""; // Reset last line for new part
+        } else {
+          throw new Error("No new content to process");
+        }
+      } else {
+        throw new Error("No new content to process");
       }
     }
+
+    // Determine new last line for current part
+    const allLines = storyContent.trimEnd().split("\n");
+    newLastLine = allLines[allLines.length - 1] || "";
+    newPart = currentPart;
   } else {
     // Single file processing (original logic)
     if (!lastLineText) {
@@ -231,53 +225,56 @@ export async function processCards(params: ProcessCardsParams) {
     newPart = 1; // Single files are always part 1
   }
 
-  // 1 & 1.5 Parallel Perspective and Title
-  const pPerspFull = `${perspectivePrompt}${PERSPECTIVE_HARD_RULES}`;
-  const pTitleFull = `${titlePrompt}${TITLE_HARD_RULES}`;
-
-  onTaskUpdate({
-    id: "perspective",
-    name: "Detecting Perspective",
-    status: "processing",
-    context: `System:\n${pPerspFull}\n\nContent:\n${storyContent}`,
-    output: "",
-  });
-
-  onTaskUpdate({
-    id: "title",
-    name: "Detecting Story Title",
-    status: "processing",
-    context: `System:\n${pTitleFull}\n\nContent:\n${storyContent}`,
-    output: "",
-  });
-
-  const [resPerspResult, resTitleResult] = await Promise.allSettled([
-    callOpenRouter(openrouterKey, perspectiveModel, pPerspFull, storyContent),
-    callOpenRouter(openrouterKey, titleModel, pTitleFull, storyContent),
-  ]);
-
+  // 1 & 1.5 Parallel Perspective and Title (only run once on part 1)
   let character = lastCharacter;
-  if (resPerspResult.status === "fulfilled") {
-    const res = resPerspResult.value;
-    onTaskUpdate({ id: "perspective", status: "completed", output: res });
-    try {
-      const json = JSON.parse(extractJson(res));
-      character = json.character || lastCharacter;
-    } catch (e) {}
-  } else {
-    onTaskUpdate({ id: "perspective", status: "error", output: resPerspResult.reason.toString() });
-  }
-
   let storyTitle = lastStoryTitle;
-  if (resTitleResult.status === "fulfilled") {
-    const res = resTitleResult.value;
-    onTaskUpdate({ id: "title", status: "completed", output: res });
-    try {
-      const json = JSON.parse(extractJson(res));
-      storyTitle = json.title || lastStoryTitle;
-    } catch (e) {}
-  } else {
-    onTaskUpdate({ id: "title", status: "error", output: resTitleResult.reason.toString() });
+
+  if (currentPart === 1 && (!lastCharacter || !lastStoryTitle)) {
+    const pPerspFull = `${perspectivePrompt}${PERSPECTIVE_HARD_RULES}`;
+    const pTitleFull = `${titlePrompt}${TITLE_HARD_RULES}`;
+
+    onTaskUpdate({
+      id: "perspective",
+      name: "Detecting Perspective",
+      status: "processing",
+      context: `System:\n${pPerspFull}\n\nContent:\n${storyContent}`,
+      output: "",
+    });
+
+    onTaskUpdate({
+      id: "title",
+      name: "Detecting Story Title",
+      status: "processing",
+      context: `System:\n${pTitleFull}\n\nContent:\n${storyContent}`,
+      output: "",
+    });
+
+    const [resPerspResult, resTitleResult] = await Promise.allSettled([
+      callOpenRouter(openrouterKey, perspectiveModel, pPerspFull, storyContent),
+      callOpenRouter(openrouterKey, titleModel, pTitleFull, storyContent),
+    ]);
+
+    if (resPerspResult.status === "fulfilled") {
+      const res = resPerspResult.value;
+      onTaskUpdate({ id: "perspective", status: "completed", output: res });
+      try {
+        const json = JSON.parse(extractJson(res));
+        character = json.character || lastCharacter;
+      } catch (e) {}
+    } else {
+      onTaskUpdate({ id: "perspective", status: "error", output: resPerspResult.reason.toString() });
+    }
+
+    if (resTitleResult.status === "fulfilled") {
+      const res = resTitleResult.value;
+      onTaskUpdate({ id: "title", status: "completed", output: res });
+      try {
+        const json = JSON.parse(extractJson(res));
+        storyTitle = json.title || lastStoryTitle;
+      } catch (e) {}
+    } else {
+      onTaskUpdate({ id: "title", status: "error", output: resTitleResult.reason.toString() });
+    }
   }
 
   let oldCards: StoryCard[] = [];
@@ -323,9 +320,9 @@ export async function processCards(params: ProcessCardsParams) {
   const pConcs = preparePrompt(conceptsPrompt, CARDS_HARD_RULES);
 
   const tasksInfo = [
-    { id: "characters", name: "Generating Characters", prompt: pChars, model: charactersModel },
-    { id: "locations", name: "Generating Locations", prompt: pLocs, model: locationsModel },
-    { id: "concepts", name: "Generating Concepts/Factions", prompt: pConcs, model: conceptsModel },
+    { id: `characters${partIndicator}`, name: `Generating Characters${partIndicator}`, prompt: pChars, model: charactersModel },
+    { id: `locations${partIndicator}`, name: `Generating Locations${partIndicator}`, prompt: pLocs, model: locationsModel },
+    { id: `concepts${partIndicator}`, name: `Generating Concepts/Factions${partIndicator}`, prompt: pConcs, model: conceptsModel },
   ].filter(t => t.model !== "None");
 
   tasksInfo.forEach(t => {
@@ -393,8 +390,8 @@ export async function processCards(params: ProcessCardsParams) {
   if (summaryModel !== "None") {
     const pSum = preparePrompt(summaryPrompt, SUMMARY_HARD_RULES);
     onTaskUpdate({
-      id: "summary",
-      name: "Generating Summary",
+      id: `summary${partIndicator}`,
+      name: `Generating Summary${partIndicator}`,
       status: "processing",
       context: `System:\n${pSum}\n\nContent:\n${storyContent}`,
       output: "",
@@ -402,11 +399,27 @@ export async function processCards(params: ProcessCardsParams) {
 
     try {
       const summaryRes = await callOpenRouter(openrouterKey, summaryModel, pSum, storyContent);
-      onTaskUpdate({ id: "summary", status: "completed", output: summaryRes });
-      const summaryJson = JSON.parse(extractJson(summaryRes));
-      newSummary = summaryJson.summary || summaryRes;
+      onTaskUpdate({ id: `summary${partIndicator}`, status: "completed", output: summaryRes });
+
+      try {
+        const summaryJson = JSON.parse(extractJson(summaryRes));
+        newSummary = summaryJson.summary || summaryRes;
+      } catch (parseError) {
+        // If JSON parsing fails, try to extract summary field manually
+        const summaryMatch = summaryRes.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+        if (summaryMatch) {
+          // Unescape the extracted string
+          newSummary = summaryMatch[1]
+            .replace(/\\n/g, '\n')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\');
+        } else {
+          // Fallback: use the raw response
+          newSummary = summaryRes;
+        }
+      }
     } catch (e: any) {
-      onTaskUpdate({ id: "summary", status: "error", output: String(e) });
+      onTaskUpdate({ id: `summary${partIndicator}`, status: "error", output: String(e) });
       throw e;
     }
   }
@@ -421,8 +434,8 @@ export async function processCards(params: ProcessCardsParams) {
     const preparedPlotPrompt = preparePrompt(plotPrompt, plotHardRules);
 
     onTaskUpdate({
-      id: "plotEssentials",
-      name: "Generating Plot Essentials",
+      id: `plotEssentials${partIndicator}`,
+      name: `Generating Plot Essentials${partIndicator}`,
       status: "processing",
       context: `System:\n${preparedPlotPrompt}\n\nContent:\n${storyContent}`,
       output: "",
@@ -430,11 +443,11 @@ export async function processCards(params: ProcessCardsParams) {
 
     try {
       const plotRes = await callOpenRouter(openrouterKey, plotEssentialsModel, preparedPlotPrompt, storyContent);
-      onTaskUpdate({ id: "plotEssentials", status: "completed", output: plotRes });
+      onTaskUpdate({ id: `plotEssentials${partIndicator}`, status: "completed", output: plotRes });
       const plotJson = JSON.parse(extractJson(plotRes));
       newPlotEssentials = plotJson.plotEssentials || plotRes;
     } catch (e: any) {
-      onTaskUpdate({ id: "plotEssentials", status: "error", output: String(e) });
+      onTaskUpdate({ id: `plotEssentials${partIndicator}`, status: "error", output: String(e) });
       throw e;
     }
   }
@@ -461,8 +474,8 @@ export async function processCards(params: ProcessCardsParams) {
     const preparedCoreSelfPrompt = coreSelfPromptPrepared + CORE_SELF_HARD_RULES;
 
     onTaskUpdate({
-      id: "coreSelf",
-      name: "Core Self Populator/Enhancer",
+      id: `coreSelf${partIndicator}`,
+      name: `Core Self Populator/Enhancer${partIndicator}`,
       status: "processing",
       context: `System:\n${preparedCoreSelfPrompt}\n\nContent:\n${storyContent}`,
       output: "",
@@ -470,7 +483,7 @@ export async function processCards(params: ProcessCardsParams) {
 
     try {
       const coreSelfRes = await callOpenRouter(openrouterKey, coreSelfModel, preparedCoreSelfPrompt, storyContent);
-      onTaskUpdate({ id: "coreSelf", status: "completed", output: coreSelfRes });
+      onTaskUpdate({ id: `coreSelf${partIndicator}`, status: "completed", output: coreSelfRes });
       const coreSelfJson = JSON.parse(extractJson(coreSelfRes));
 
       if (Array.isArray(coreSelfJson.coreSelfUpdates)) {
@@ -514,7 +527,7 @@ export async function processCards(params: ProcessCardsParams) {
         });
       }
     } catch (e: any) {
-      onTaskUpdate({ id: "coreSelf", status: "error", output: String(e) });
+      onTaskUpdate({ id: `coreSelf${partIndicator}`, status: "error", output: String(e) });
       throw e;
     }
   }
