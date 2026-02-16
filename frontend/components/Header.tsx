@@ -62,10 +62,10 @@ export function Header({
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2" data-tauri-drag-region={IS_TAURI ? "true" : undefined}>
           <div className="w-8 h-8 flex items-center justify-center overflow-hidden" data-tauri-drag-region={IS_TAURI ? "true" : undefined}>
-            <img src="contentfox.png" alt="Content Fox" className="w-full h-full object-contain" data-tauri-drag-region={IS_TAURI ? "true" : undefined} />
+            <img src="contentfox.png" alt="Context Fox" className="w-full h-full object-contain" data-tauri-drag-region={IS_TAURI ? "true" : undefined} />
           </div>
           <h1 className="text-lg font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-violet-400" data-tauri-drag-region={IS_TAURI ? "true" : undefined}>
-            Content Fox
+            Context Fox
           </h1>
         </div>
 

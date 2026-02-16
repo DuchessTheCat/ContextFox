@@ -1,4 +1,4 @@
-# Content Fox
+# Context Fox
 
 An AI-powered story context tool built with Tauri, React, and TypeScript.
 
