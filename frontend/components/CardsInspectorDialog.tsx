@@ -27,6 +27,14 @@ export function CardsInspectorDialog({
   const [editingCard, setEditingCard] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
+  const updateCardValue = (title: string, newValue: string) => {
+    const updatedCards = cards.map(card =>
+      card.title === title ? { ...card, value: newValue } : card
+    );
+    onUpdateCards(updatedCards);
+    setEditingCard(null);
+  };
+
   const filteredCards = cards.filter(
     (card) =>
       card.title.toLowerCase().includes(search.toLowerCase()) ||

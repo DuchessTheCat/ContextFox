@@ -552,7 +552,7 @@ function App() {
       // Convert zipParts back to Map if it's a plain object (from storage)
       let zipPartsMap = currentStory.zipParts;
       if (currentStory.zipParts && !(currentStory.zipParts instanceof Map)) {
-        zipPartsMap = new Map(Object.entries(currentStory.zipParts).map(([k, v]) => [parseInt(k), v]));
+        zipPartsMap = new Map(Object.entries(currentStory.zipParts).map(([k, v]) => [parseInt(k), v as string]));
       }
 
       const result = await processCards({
