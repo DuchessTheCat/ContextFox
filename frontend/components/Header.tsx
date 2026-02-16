@@ -145,7 +145,7 @@ export function Header({
               ? "bg-red-500 text-red-500"
               : "bg-emerald-500 text-emerald-500"
           )} />
-          <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground truncate max-w-[200px]">
+          <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground truncate max-w-[400px]">
             {status}
           </span>
         </button>

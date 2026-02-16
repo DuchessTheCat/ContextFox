@@ -431,7 +431,7 @@ export async function processCards(params: ProcessCardsParams) {
   let newPlotEssentials = lastPlotEssentials;
   if (plotEssentialsModel !== "None") {
     // Use different prompt based on whether we have existing plot essentials
-    const hasExistingPlotEssentials = lastPlotEssentials && lastPlotEssentials.trim().length > 0;
+    const hasExistingPlotEssentials = lastPlotEssentials && typeof lastPlotEssentials === 'string' && lastPlotEssentials.trim().length > 0;
     const plotPrompt = hasExistingPlotEssentials ? plotEssentialsWithContextPrompt : plotEssentialsPrompt;
     const plotHardRules = '\n\nReturn ONLY a JSON object in this format: { "plotEssentials": "..." }';
     const preparedPlotPrompt = preparePrompt(plotPrompt, plotHardRules);
@@ -447,8 +447,24 @@ export async function processCards(params: ProcessCardsParams) {
     try {
       const plotRes = await callOpenRouter(openrouterKey, plotEssentialsModel, preparedPlotPrompt, storyContent);
       onTaskUpdate({ id: `plotEssentials${partIndicator}`, status: "completed", output: plotRes });
-      const plotJson = JSON.parse(extractJson(plotRes));
-      newPlotEssentials = plotJson.plotEssentials || plotRes;
+
+      try {
+        const plotJson = JSON.parse(extractJson(plotRes));
+        newPlotEssentials = plotJson.plotEssentials || plotRes;
+      } catch (parseError) {
+        // If JSON parsing fails, try to extract plotEssentials field manually
+        const plotMatch = plotRes.match(/"plotEssentials"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+        if (plotMatch) {
+          // Unescape the extracted string
+          newPlotEssentials = plotMatch[1]
+            .replace(/\\n/g, '\n')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\');
+        } else {
+          // Fallback: use the raw response
+          newPlotEssentials = plotRes;
+        }
+      }
     } catch (e: any) {
       onTaskUpdate({ id: `plotEssentials${partIndicator}`, status: "error", output: String(e) });
       throw e;

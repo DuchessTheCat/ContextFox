@@ -677,7 +677,12 @@ function App() {
       const updatedCards = JSON.parse(result.story_cards);
       const updatedSummary = currentStory.accumulatedSummary ? `${currentStory.accumulatedSummary}\n\n${result.summary}` : result.summary;
 
-      updateCurrentStory({
+      // Check if there are more parts to process
+      const totalParts = zipPartsMap instanceof Map ? zipPartsMap.size : 1;
+      const hasMoreParts = currentStory.isZipFile && result.current_part < totalParts;
+
+      // Update story state
+      const updates: Partial<StoryState> = {
         accumulatedCards: updatedCards,
         accumulatedSummary: updatedSummary,
         plotEssentials: result.plot_essentials,
@@ -686,20 +691,20 @@ function App() {
         character: result.character,
         storyTitle: result.story_title,
         name: result.story_title || currentStory.name
-      });
+      };
 
-      // Check if there are more parts to process
-      const totalParts = zipPartsMap instanceof Map ? zipPartsMap.size : 1;
-      const hasMoreParts = currentStory.isZipFile && result.current_part < totalParts;
+      updateCurrentStory(updates);
 
       if (hasMoreParts) {
-        setStatus(`Part ${result.current_part}/${totalParts} complete. Click Process to continue.`);
+        setStatus(`Part ${result.current_part}/${totalParts} complete. Processing next part...`);
+        // Wait for state to update, then continue processing
+        setTimeout(() => handleProcess(), 100);
       } else {
         setStatus("Processing complete!");
+        setIsProcessing(false);
       }
     } catch (error) {
       setStatus(`Error: ${error}`);
-    } finally {
       setIsProcessing(false);
     }
   }
