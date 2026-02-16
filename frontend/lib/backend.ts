@@ -466,6 +466,18 @@ export async function processCards(params: ProcessCardsParams) {
             newSummary = res.value;
           }
         }
+
+        // Additional cleanup: if summary still starts with JSON structure, try to extract again
+        if (typeof newSummary === 'string' && newSummary.trim().startsWith('{')) {
+          try {
+            const secondParse = JSON.parse(newSummary);
+            if (secondParse.summary) {
+              newSummary = secondParse.summary;
+            }
+          } catch (e) {
+            // If it fails, keep the current value
+          }
+        }
       }
     } else {
       onTaskUpdate({ id: res.id, status: "error", output: String(res.reason) });

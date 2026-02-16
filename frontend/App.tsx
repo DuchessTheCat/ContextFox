@@ -555,75 +555,17 @@ function App() {
     }
   };
 
-  async function handleProcess() {
-    if (!currentStory.storyPath) {
-      setStatus("Error: Story file is required");
-      return;
-    }
-    if (!openrouterKey) {
-      setStatus("Error: OpenRouter API Key is required");
-      return;
-    }
-
-    setIsProcessing(true);
-    setStatus("Processing new content...");
-
-    // Clear tasks - they will be populated by processCards with correct part indicators
-    setTasks([]);
-    setSelectedTask(null);
-
+  async function processNextPart(
+    zipPartsMap: Map<number, string> | undefined,
+    partToProcess: number
+  ): Promise<void> {
     try {
-      // Map AID model to underlying technical model for prompt insertion
       const underlyingModel = getUnderlyingModel(storyModel);
 
-      let storyContent = currentStory.storyContent;
-      let zipPartsMap: Map<number, string> | undefined = currentStory.zipParts;
-
-      // Load file contents from IndexedDB or disk
-      const cachedContents = await loadFileContents(currentStoryId);
-
-      if (IS_TAURI && currentStory.storyPath) {
-        // Tauri mode: reload from disk
-        if (currentStory.isZipFile && currentStory.storyPath.endsWith('.zip')) {
-          // Reload zip file
-          try {
-            const uint8Array = await readFile(currentStory.storyPath);
-            const buffer = uint8Array.buffer;
-            const { parts } = await loadZipFile(buffer, currentStory.storyPath);
-            zipPartsMap = parts;
-          } catch (err) {
-            throw new Error(`Failed to read zip file: ${err}`);
-          }
-        } else {
-          // Regular text file
-          try {
-            storyContent = await readTextFile(currentStory.storyPath);
-          } catch (err) {
-            throw new Error(`Failed to read story file: ${err}`);
-          }
-        }
-      } else {
-        // Browser mode: use IndexedDB cache
-        if (cachedContents) {
-          if (cachedContents.zipParts) {
-            zipPartsMap = new Map(
-              Object.entries(cachedContents.zipParts).map(([k, v]) => [parseInt(k, 10), v])
-            );
-          }
-          if (cachedContents.storyContent) {
-            storyContent = cachedContents.storyContent;
-          }
-        }
-      }
-
-      if (!storyContent && !zipPartsMap) {
-        throw new Error("Story content missing (re-select file)");
-      }
-
       const result = await processCards({
-        storyContent: storyContent || "",
+        storyContent: "",
         lastLineText: currentStory.lastLine,
-        currentPart: currentStory.currentPart || 1,
+        currentPart: partToProcess,
         isZipFile: currentStory.isZipFile || false,
         zipParts: zipPartsMap,
         lastSummary: currentStory.accumulatedSummary,
@@ -677,11 +619,9 @@ function App() {
       const updatedCards = JSON.parse(result.story_cards);
       const updatedSummary = currentStory.accumulatedSummary ? `${currentStory.accumulatedSummary}\n\n${result.summary}` : result.summary;
 
-      // Check if there are more parts to process
       const totalParts = zipPartsMap instanceof Map ? zipPartsMap.size : 1;
       const hasMoreParts = currentStory.isZipFile && result.current_part < totalParts;
 
-      // Update story state
       const updates: Partial<StoryState> = {
         accumulatedCards: updatedCards,
         accumulatedSummary: updatedSummary,
@@ -697,12 +637,79 @@ function App() {
 
       if (hasMoreParts) {
         setStatus(`Part ${result.current_part}/${totalParts} complete. Processing next part...`);
-        // Wait for state to update, then continue processing
-        setTimeout(() => handleProcess(), 100);
+        // Continue processing next part without resetting
+        await processNextPart(zipPartsMap, result.current_part + 1);
       } else {
         setStatus("Processing complete!");
         setIsProcessing(false);
       }
+    } catch (error) {
+      setStatus(`Error: ${error}`);
+      setIsProcessing(false);
+      throw error;
+    }
+  }
+
+  async function handleProcess() {
+    if (!currentStory.storyPath) {
+      setStatus("Error: Story file is required");
+      return;
+    }
+    if (!openrouterKey) {
+      setStatus("Error: OpenRouter API Key is required");
+      return;
+    }
+
+    setIsProcessing(true);
+    setStatus("Processing new content...");
+
+    // Clear tasks - they will be populated by processCards with correct part indicators
+    setTasks([]);
+    setSelectedTask(null);
+
+    try {
+      let storyContent = currentStory.storyContent;
+      let zipPartsMap: Map<number, string> | undefined = currentStory.zipParts;
+
+      // Load file contents from IndexedDB or disk
+      const cachedContents = await loadFileContents(currentStoryId);
+
+      if (IS_TAURI && currentStory.storyPath) {
+        if (currentStory.isZipFile && currentStory.storyPath.endsWith('.zip')) {
+          try {
+            const uint8Array = await readFile(currentStory.storyPath);
+            const buffer = uint8Array.buffer;
+            const { parts } = await loadZipFile(buffer, currentStory.storyPath);
+            zipPartsMap = parts;
+          } catch (err) {
+            throw new Error(`Failed to read zip file: ${err}`);
+          }
+        } else {
+          try {
+            storyContent = await readTextFile(currentStory.storyPath);
+          } catch (err) {
+            throw new Error(`Failed to read story file: ${err}`);
+          }
+        }
+      } else {
+        if (cachedContents) {
+          if (cachedContents.zipParts) {
+            zipPartsMap = new Map(
+              Object.entries(cachedContents.zipParts).map(([k, v]) => [parseInt(k, 10), v])
+            );
+          }
+          if (cachedContents.storyContent) {
+            storyContent = cachedContents.storyContent;
+          }
+        }
+      }
+
+      if (!storyContent && !zipPartsMap) {
+        throw new Error("Story content missing (re-select file)");
+      }
+
+      // Start processing from current part
+      await processNextPart(zipPartsMap, currentStory.currentPart || 1);
     } catch (error) {
       setStatus(`Error: ${error}`);
       setIsProcessing(false);

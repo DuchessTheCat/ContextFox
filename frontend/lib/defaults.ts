@@ -12,7 +12,7 @@ export const DEFAULT_TASK_MODELS = {
 export const DEFAULT_STORY_MODEL = "Raven";
 
 export const DEFAULT_PROMPTS = {
-  perspective: "Identify the main perspective character of this story.",
+  perspective: "Identify the main perspective character of this story's most commonly used name.",
 
   title: "Choose a fitting title for this story.",
 
@@ -101,7 +101,7 @@ Keep to one concise blob of text. No formatting, headers, markdown or separate p
 
 Example:
 
-You are name, a colossal white dragon who possesses the ability to shapeshift into a slender humanoid. You woke up in a damp but beautiful cave, surprised to be approached by a shivering girl, seeming terrified of you yet filled with determination.... You... You then... You met... They smiled as you told them about your pain, showing just how callous they are... They were... "...You're wrong. What I feel isn't hate, it is love..."...
+You are full name, also known as nickname, a colossal white dragon who possesses the ability to shapeshift into a slender humanoid. You woke up in a damp but beautiful cave, surprised to be approached by a shivering girl, seeming terrified of you yet filled with determination.... You... You then... You met... They smiled as you told them about your pain, showing just how callous they are... They were... "...You're wrong. What I feel isn't hate, it is love..."...
 And so forth.
 
 
@@ -122,7 +122,7 @@ Include:
 - Important world rules
 - Likely or interesting random events for the future
 
-Format as a concise bullet-point list. Focus on actionable elements that the AI should remember and potentially reference or resolve in future story generation.`,
+Format this with markdown. Focus on actionable elements that the AI should remember and potentially reference or resolve in future story generation.`,
 
   plotEssentialsWithContext: `Current Plot Essentials:
 $lastPlotEssentials
@@ -139,7 +139,7 @@ Include:
 - Important world rules
 - Likely or interesting random events for the future
 
-Format as a concise bullet-point list. Focus on actionable elements that the AI should remember and potentially reference or resolve in future story generation.`,
+Format this with markdown. Focus on actionable elements that the AI should remember and potentially reference or resolve in future story generation.`,
 
   coreSelf: `Story Summary:
 $lastSummary
