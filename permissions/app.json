@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/schema.json",
+  "identifier": "allow-app-commands",
+  "description": "Allows calling application-specific commands",
+  "commands": {
+    "allow": [
+      "process_cards",
+      "get_openrouter_models"
+    ]
+  }
+}
