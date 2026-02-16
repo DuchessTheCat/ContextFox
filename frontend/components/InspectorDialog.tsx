@@ -8,6 +8,7 @@ interface InspectorDialogProps {
   currentStory: StoryState;
   updateCurrentStory: (updates: Partial<StoryState>) => void;
   onOpenCardsInspector: () => void;
+  cardsInspectorOpen?: boolean;
 }
 
 export function InspectorDialog({
@@ -16,11 +17,12 @@ export function InspectorDialog({
   currentStory,
   updateCurrentStory,
   onOpenCardsInspector,
+  cardsInspectorOpen,
 }: InspectorDialogProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/80 backdrop-blur-xl z-40 animate-in fade-in duration-300" />
+        <Dialog.Overlay className={`fixed inset-0 bg-black/80 backdrop-blur-xl z-40 animate-in fade-in duration-300 ${cardsInspectorOpen ? 'pointer-events-none' : ''}`} />
         <Dialog.Content className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] w-[90vw] max-w-4xl max-h-[90vh] overflow-y-auto bg-card border border-border shadow-sm rounded-3xl p-8 z-50 animate-in zoom-in-95 duration-200 focus:outline-none custom-scrollbar">
           <div className="flex items-center justify-between mb-8">
             <Dialog.Title className="text-2xl font-semibold flex items-center gap-3 text-foreground uppercase tracking-tight">

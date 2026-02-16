@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import { X, Search, ChevronDown, ChevronRight } from "lucide-react";
 import { StoryCard } from "../types";
 
@@ -25,16 +26,6 @@ export function CardsInspectorDialog({
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [editingCard, setEditingCard] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
-
-  const updateCardValue = (title: string, newValue: string) => {
-    const updatedCards = cards.map(card =>
-      card.title === title ? { ...card, value: newValue } : card
-    );
-    onUpdateCards(updatedCards);
-    setEditingCard(null);
-  };
-
-  if (!open) return null;
 
   const filteredCards = cards.filter(
     (card) =>
@@ -71,8 +62,10 @@ export function CardsInspectorDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="w-full max-w-5xl max-h-[90vh] bg-slate-900 rounded-3xl border border-border shadow-2xl flex flex-col overflow-hidden">
+    <Dialog.Root open={open} onOpenChange={onOpenChange} modal={false}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm" />
+        <Dialog.Content className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] w-full max-w-5xl max-h-[90vh] bg-slate-900 rounded-3xl border border-border shadow-2xl flex flex-col overflow-hidden z-[100] focus:outline-none">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border bg-slate-800/50">
           <div>
@@ -224,7 +217,8 @@ export function CardsInspectorDialog({
             })
           )}
         </div>
-      </div>
-    </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

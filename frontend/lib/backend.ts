@@ -314,15 +314,17 @@ export async function processCards(params: ProcessCardsParams) {
       .replace(/\$cards/g, cardsContext) + hardRules;
   };
 
-  // 2. Parallel requests for cards
+  // 2. Parallel requests for cards AND summary
   const pChars = preparePrompt(charactersPrompt, CARDS_HARD_RULES);
   const pLocs = preparePrompt(locationsPrompt, CARDS_HARD_RULES);
   const pConcs = preparePrompt(conceptsPrompt, CARDS_HARD_RULES);
+  const pSum = preparePrompt(summaryPrompt, SUMMARY_HARD_RULES);
 
   const tasksInfo = [
-    { id: `characters${partIndicator}`, name: `Generating Characters${partIndicator}`, prompt: pChars, model: charactersModel },
-    { id: `locations${partIndicator}`, name: `Generating Locations${partIndicator}`, prompt: pLocs, model: locationsModel },
-    { id: `concepts${partIndicator}`, name: `Generating Concepts/Factions${partIndicator}`, prompt: pConcs, model: conceptsModel },
+    { id: `characters${partIndicator}`, name: `Generating Characters${partIndicator}`, prompt: pChars, model: charactersModel, type: 'cards' as const },
+    { id: `locations${partIndicator}`, name: `Generating Locations${partIndicator}`, prompt: pLocs, model: locationsModel, type: 'cards' as const },
+    { id: `concepts${partIndicator}`, name: `Generating Concepts/Factions${partIndicator}`, prompt: pConcs, model: conceptsModel, type: 'cards' as const },
+    { id: `summary${partIndicator}`, name: `Generating Summary${partIndicator}`, prompt: pSum, model: summaryModel, type: 'summary' as const },
   ].filter(t => t.model !== "None");
 
   tasksInfo.forEach(t => {
@@ -335,35 +337,75 @@ export async function processCards(params: ProcessCardsParams) {
     });
   });
 
-  const cardResults = await Promise.all(tasksInfo.map(async (t) => {
+  const allResults = await Promise.all(tasksInfo.map(async (t) => {
     try {
       const res = await callOpenRouter(openrouterKey, t.model, t.prompt, storyContent);
-      return { id: t.id, status: "fulfilled" as const, value: res };
+      return { id: t.id, type: t.type, status: "fulfilled" as const, value: res };
     } catch (e: any) {
-      return { id: t.id, status: "rejected" as const, reason: e };
+      return { id: t.id, type: t.type, status: "rejected" as const, reason: e };
     }
   }));
 
+  // Process card results
   const aiGeneratedCards: StoryCard[] = [];
-  for (const res of cardResults) {
+  let newSummary = lastSummary;
+
+  for (const res of allResults) {
     if (res.status === "fulfilled") {
       onTaskUpdate({ id: res.id, status: "completed", output: res.value });
-      try {
-        const json = JSON.parse(extractJson(res.value));
-        if (Array.isArray(json.cards)) {
-          json.cards.forEach((cardVal: any) => {
-            aiGeneratedCards.push({
-              keys: cardVal.keys || "",
-              value: cardVal.value || "",
-              type: cardVal.type || "",
-              title: cardVal.title || "",
-              description: "",
-              useForCharacterCreation: false,
+
+      if (res.type === 'cards') {
+        try {
+          const extractedJson = extractJson(res.value);
+          let json;
+          try {
+            json = JSON.parse(extractedJson);
+          } catch (parseError) {
+            // If JSON parsing fails, try to manually fix common issues like unterminated strings
+            // Replace unescaped newlines within string values
+            const fixedJson = extractedJson
+              .replace(/\\n/g, '\\\\n')  // Escape already-escaped newlines
+              .replace(/([^\\])\\"/g, '$1\\\\"');  // Escape quotes that aren't already escaped
+            try {
+              json = JSON.parse(fixedJson);
+            } catch (secondError) {
+              throw new Error(`Failed to parse card JSON even after attempting fixes: ${secondError}. Raw response: ${res.value}`);
+            }
+          }
+
+          if (Array.isArray(json.cards)) {
+            json.cards.forEach((cardVal: any) => {
+              aiGeneratedCards.push({
+                keys: cardVal.keys || "",
+                value: cardVal.value || "",
+                type: cardVal.type || "",
+                title: cardVal.title || "",
+                description: "",
+                useForCharacterCreation: false,
+              });
             });
-          });
+          }
+        } catch (e) {
+          throw new Error(`Failed to parse card JSON: ${e}. Raw response: ${res.value}`);
         }
-      } catch (e) {
-        throw new Error(`Failed to parse card JSON: ${e}. Raw response: ${res.value}`);
+      } else if (res.type === 'summary') {
+        try {
+          const summaryJson = JSON.parse(extractJson(res.value));
+          newSummary = summaryJson.summary || res.value;
+        } catch (parseError) {
+          // If JSON parsing fails, try to extract summary field manually
+          const summaryMatch = res.value.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+          if (summaryMatch) {
+            // Unescape the extracted string
+            newSummary = summaryMatch[1]
+              .replace(/\\n/g, '\n')
+              .replace(/\\"/g, '"')
+              .replace(/\\\\/g, '\\');
+          } else {
+            // Fallback: use the raw response
+            newSummary = res.value;
+          }
+        }
       }
     } else {
       onTaskUpdate({ id: res.id, status: "error", output: String(res.reason) });
@@ -384,45 +426,6 @@ export async function processCards(params: ProcessCardsParams) {
 
   // Re-combine regular cards with excluded cards
   const finalCards = [...regularCards, ...excludedCards];
-
-  // 3. Summary request (sequential)
-  let newSummary = lastSummary;
-  if (summaryModel !== "None") {
-    const pSum = preparePrompt(summaryPrompt, SUMMARY_HARD_RULES);
-    onTaskUpdate({
-      id: `summary${partIndicator}`,
-      name: `Generating Summary${partIndicator}`,
-      status: "processing",
-      context: `System:\n${pSum}\n\nContent:\n${storyContent}`,
-      output: "",
-    });
-
-    try {
-      const summaryRes = await callOpenRouter(openrouterKey, summaryModel, pSum, storyContent);
-      onTaskUpdate({ id: `summary${partIndicator}`, status: "completed", output: summaryRes });
-
-      try {
-        const summaryJson = JSON.parse(extractJson(summaryRes));
-        newSummary = summaryJson.summary || summaryRes;
-      } catch (parseError) {
-        // If JSON parsing fails, try to extract summary field manually
-        const summaryMatch = summaryRes.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
-        if (summaryMatch) {
-          // Unescape the extracted string
-          newSummary = summaryMatch[1]
-            .replace(/\\n/g, '\n')
-            .replace(/\\"/g, '"')
-            .replace(/\\\\/g, '\\');
-        } else {
-          // Fallback: use the raw response
-          newSummary = summaryRes;
-        }
-      }
-    } catch (e: any) {
-      onTaskUpdate({ id: `summary${partIndicator}`, status: "error", output: String(e) });
-      throw e;
-    }
-  }
 
   // 4. Plot Essentials request (sequential, after summary)
   let newPlotEssentials = lastPlotEssentials;

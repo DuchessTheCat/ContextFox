@@ -527,18 +527,9 @@ function App() {
 
     setIsProcessing(true);
     setStatus("Processing new content...");
-    
-    // Pre-populate tasks to ensure pipeline is not empty
-    const initialTasks: Task[] = [
-      { id: 'perspective', name: 'Detecting Perspective', status: 'waiting' },
-      { id: 'title', name: 'Detecting Story Title', status: 'waiting' },
-      { id: 'characters', name: 'Generating Characters', status: 'waiting' },
-      { id: 'locations', name: 'Generating Locations', status: 'waiting' },
-      { id: 'concepts', name: 'Generating Concepts/Factions', status: 'waiting' },
-      { id: 'summary', name: 'Generating Summary', status: 'waiting' },
-      { id: 'plotEssentials', name: 'Generating Plot Essentials', status: 'waiting' },
-    ];
-    setTasks(initialTasks);
+
+    // Clear tasks - they will be populated by processCards with correct part indicators
+    setTasks([]);
     setSelectedTask(null);
 
     try {
@@ -558,12 +549,18 @@ function App() {
         throw new Error("Story content missing (re-select file)");
       }
 
+      // Convert zipParts back to Map if it's a plain object (from storage)
+      let zipPartsMap = currentStory.zipParts;
+      if (currentStory.zipParts && !(currentStory.zipParts instanceof Map)) {
+        zipPartsMap = new Map(Object.entries(currentStory.zipParts).map(([k, v]) => [parseInt(k), v]));
+      }
+
       const result = await processCards({
         storyContent,
         lastLineText: currentStory.lastLine,
         currentPart: currentStory.currentPart || 1,
         isZipFile: currentStory.isZipFile || false,
-        zipParts: currentStory.zipParts,
+        zipParts: zipPartsMap,
         lastSummary: currentStory.accumulatedSummary,
         lastCards: JSON.stringify(currentStory.accumulatedCards),
         lastPlotEssentials: currentStory.plotEssentials || "",
@@ -626,7 +623,15 @@ function App() {
         name: result.story_title || currentStory.name
       });
 
-      setStatus("Processing complete!");
+      // Check if there are more parts to process
+      const totalParts = zipPartsMap instanceof Map ? zipPartsMap.size : 1;
+      const hasMoreParts = currentStory.isZipFile && result.current_part < totalParts;
+
+      if (hasMoreParts) {
+        setStatus(`Part ${result.current_part}/${totalParts} complete. Click Process to continue.`);
+      } else {
+        setStatus("Processing complete!");
+      }
     } catch (error) {
       setStatus(`Error: ${error}`);
     } finally {
@@ -693,10 +698,17 @@ function App() {
 
       <InspectorDialog
         open={showInspector}
-        onOpenChange={setShowInspector}
+        onOpenChange={(open) => {
+          // Only allow closing story inspector if cards inspector is not open
+          if (!open && showCardsInspector) {
+            return;
+          }
+          setShowInspector(open);
+        }}
         currentStory={currentStory}
         updateCurrentStory={updateCurrentStory}
         onOpenCardsInspector={() => setShowCardsInspector(true)}
+        cardsInspectorOpen={showCardsInspector}
       />
 
       <CardsInspectorDialog
