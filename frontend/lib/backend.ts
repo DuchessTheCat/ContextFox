@@ -98,7 +98,7 @@ async function callOpenRouter(apiKey: string, model: string, prompt: string, con
 const PERSPECTIVE_HARD_RULES = "\n\nReturn ONLY a JSON object in this format: { \"character\": \"name\" }";
 const TITLE_HARD_RULES = "\n\nReturn ONLY a JSON object in this format: { \"title\": \"...\" }";
 const CARDS_HARD_RULES = "\n\nReturn ONLY a JSON object with a \"cards\" key containing an array of story cards. For each card, use \"value\" for the description. Format: { \"cards\": [ { \"keys\": \"trigger1, trigger2\", \"value\": \"Detailed description of what this is\", \"type\": \"character/location/concept\", \"title\": \"Name\" } ] }";
-const SUMMARY_HARD_RULES = "\n\nReturn ONLY a JSON object with a \"summary\" key containing the text of the summary: { \"summary\": \"...\" }";
+const SUMMARY_HARD_RULES = "\n\nReturn ONLY a JSON object with the complete \"summary\" key containing the text of the summary: { \"summary\": \"...\" }";
 const CORE_SELF_HARD_RULES = "\n\nReturn ONLY a JSON object in this format: { \"coreSelfUpdates\": [ { \"title\": \"exact card title\", \"core_self\": \"2-5 sentence description\" } ] }";
 
 export interface ProcessCardsParams {
@@ -674,7 +674,8 @@ export async function processCards(params: ProcessCardsParams) {
     let currentCoreSelfPrompt = preparedCoreSelfPrompt;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        coreSelfRes = await callOpenRouter(openrouterKey, coreSelfModel, currentCoreSelfPrompt, storyContent);
+        // Core self doesn't need story content - it only works with cards from the prompt
+        coreSelfRes = await callOpenRouter(openrouterKey, coreSelfModel, currentCoreSelfPrompt, "");
         onTaskUpdate({ id: `coreSelf${partIndicator}`, status: "completed", output: coreSelfRes });
         break;
       } catch (e: any) {
@@ -688,57 +689,63 @@ export async function processCards(params: ProcessCardsParams) {
           }
         } else {
           onTaskUpdate({ id: `coreSelf${partIndicator}`, status: "error", output: String(e) });
-          throw e;
+          // Don't throw - just log error and continue
+          console.error(`Core self failed after retry:`, e);
+          break;
         }
       }
     }
 
-    try {
-      const coreSelfJson = JSON.parse(extractJson(coreSelfRes));
+    // Only process if we got a response
+    if (coreSelfRes && coreSelfRes.trim().length > 0) {
+      try {
+        const coreSelfJson = JSON.parse(extractJson(coreSelfRes));
 
-      if (Array.isArray(coreSelfJson.coreSelfUpdates)) {
-        // Merge core_self updates into brain cards
-        updatedFinalCards = finalCards.map(card => {
-          const update = coreSelfJson.coreSelfUpdates.find((u: any) => u.title === card.title);
-          if (update && isBrainCard(card)) {
-            let existingDesc = card.description || "";
+        if (Array.isArray(coreSelfJson.coreSelfUpdates)) {
+          // Merge core_self updates into brain cards
+          updatedFinalCards = finalCards.map(card => {
+            const update = coreSelfJson.coreSelfUpdates.find((u: any) => u.title === card.title);
+            if (update && isBrainCard(card)) {
+              let existingDesc = card.description || "";
 
-            // Try parsing as JSON first (in case description is JSON)
-            try {
-              const descJson = JSON.parse(existingDesc);
-              if (typeof descJson === "object" && descJson !== null) {
-                // Description is JSON, just update or add core_self field
-                descJson.core_self = update.core_self;
-                return { ...card, description: JSON.stringify(descJson) };
+              // Try parsing as JSON first (in case description is JSON)
+              try {
+                const descJson = JSON.parse(existingDesc);
+                if (typeof descJson === "object" && descJson !== null) {
+                  // Description is JSON, just update or add core_self field
+                  descJson.core_self = update.core_self;
+                  return { ...card, description: JSON.stringify(descJson) };
+                }
+              } catch (e) {
+                // Not JSON, treat as plain text
               }
-            } catch (e) {
-              // Not JSON, treat as plain text
-            }
 
-            // Plain text description - remove existing core_self if present
-            if (existingDesc.startsWith("core_self:")) {
-              // Find end of core_self (blank line or end of string)
-              const blankLineMatch = existingDesc.match(/\n\s*\n/);
-              if (blankLineMatch && blankLineMatch.index !== undefined) {
-                existingDesc = existingDesc.substring(blankLineMatch.index + blankLineMatch[0].length);
-              } else {
-                // No blank line found, core_self is the entire content
-                existingDesc = "";
+              // Plain text description - remove existing core_self if present
+              if (existingDesc.startsWith("core_self:")) {
+                // Find end of core_self (blank line or end of string)
+                const blankLineMatch = existingDesc.match(/\n\s*\n/);
+                if (blankLineMatch && blankLineMatch.index !== undefined) {
+                  existingDesc = existingDesc.substring(blankLineMatch.index + blankLineMatch[0].length);
+                } else {
+                  // No blank line found, core_self is the entire content
+                  existingDesc = "";
+                }
               }
-            }
 
-            // Add new core_self at the top
-            const newDescription = existingDesc
-              ? `core_self: ${update.core_self}\n\n${existingDesc}`
-              : `core_self: ${update.core_self}`;
-            return { ...card, description: newDescription };
-          }
-          return card;
-        });
+              // Add new core_self at the top
+              const newDescription = existingDesc
+                ? `core_self: ${update.core_self}\n\n${existingDesc}`
+                : `core_self: ${update.core_self}`;
+              return { ...card, description: newDescription };
+            }
+            return card;
+          });
+        }
+      } catch (e: any) {
+        // Don't throw on parse error - just log and continue without core self updates
+        console.error(`Failed to parse core self response:`, e);
+        onTaskUpdate({ id: `coreSelf${partIndicator}`, status: "error", output: `Parse error: ${String(e)}` });
       }
-    } catch (e: any) {
-      onTaskUpdate({ id: `coreSelf${partIndicator}`, status: "error", output: String(e) });
-      throw e;
     }
   }
 

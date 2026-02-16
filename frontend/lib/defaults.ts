@@ -107,7 +107,7 @@ You are full name, also known as nickname, a colossal white dragon who possesses
 And so forth.
 
 
-- If a last summary exists, add to that summary to create one complete summary, removing/adjusting irrelevant old data if fitting.
+- If a last summary exists, add to that summary to create one complete summary and return the full combined summary, removing/adjusting irrelevant old data if fitting.
 - Avoid rehashing or describing anything currently in a story card.
 - Keep the summary below 10.000 characters
 `,
