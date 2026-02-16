@@ -69,7 +69,7 @@ async function callOpenRouter(apiKey: string, model: string, prompt: string, con
         { role: "user", content: content },
       ],
       response_format: { type: "json_object" },
-      max_tokens: 4000
+      max_tokens: 20000
     }),
   });
 
@@ -77,7 +77,15 @@ async function callOpenRouter(apiKey: string, model: string, prompt: string, con
   if (json.error) {
     throw new Error(json.error.message || JSON.stringify(json.error));
   }
-  return json.choices[0].message.content;
+
+  const responseContent = json.choices[0].message.content;
+
+  // Check if response was truncated
+  if (json.choices[0].finish_reason === "length") {
+    console.warn("Response was truncated due to max_tokens limit");
+  }
+
+  return responseContent;
 }
 
 const PERSPECTIVE_HARD_RULES = "\n\nReturn ONLY a JSON object in this format: { \"character\": \"name\" }";
@@ -397,10 +405,10 @@ export async function processCards(params: ProcessCardsParams) {
       onTaskUpdate({ id: res.id, status: "completed", output: res.value });
 
       if (res.type === 'cards') {
-        // Check if response is empty or whitespace
+        // Check if response is empty or whitespace - this is OK for cards (just means no new cards)
         if (!res.value || res.value.trim().length === 0) {
-          console.warn(`Empty response for ${res.id}, skipping card generation`);
-          onTaskUpdate({ id: res.id, status: "error", output: "Empty response from AI" });
+          console.warn(`Empty response for ${res.id}, skipping card generation (no new cards)`);
+          onTaskUpdate({ id: res.id, status: "completed", output: "No new cards generated (empty response)" });
           continue;
         }
 
@@ -409,7 +417,7 @@ export async function processCards(params: ProcessCardsParams) {
 
           if (!extractedJson || extractedJson.trim().length === 0) {
             console.warn(`No JSON found in response for ${res.id}, skipping card generation`);
-            onTaskUpdate({ id: res.id, status: "error", output: "No JSON found in response" });
+            onTaskUpdate({ id: res.id, status: "completed", output: "No new cards generated (no JSON found)" });
             continue;
           }
 
@@ -417,16 +425,43 @@ export async function processCards(params: ProcessCardsParams) {
           try {
             json = JSON.parse(extractedJson);
           } catch (parseError) {
-            // If JSON parsing fails, try to manually fix common issues like unterminated strings
-            // Replace unescaped newlines within string values
-            const fixedJson = extractedJson
-              .replace(/\\n/g, '\\\\n')  // Escape already-escaped newlines
-              .replace(/([^\\])\\"/g, '$1\\\\"');  // Escape quotes that aren't already escaped
-            try {
-              json = JSON.parse(fixedJson);
-            } catch (secondError) {
-              console.error(`Failed to parse card JSON for ${res.id}:`, secondError);
-              onTaskUpdate({ id: res.id, status: "error", output: `Parse error: ${secondError}` });
+            // If JSON parsing fails, try to extract as much as possible from the truncated JSON
+            console.warn(`JSON parse failed for ${res.id}, attempting recovery...`);
+
+            // Try to find complete card objects even in truncated JSON
+            const cardMatches = extractedJson.matchAll(/"title"\s*:\s*"([^"]+)"/g);
+            let recoveredCards = 0;
+
+            for (const match of cardMatches) {
+              // Try to extract complete card data around each title
+              const titleIndex = match.index!;
+              const beforeTitle = extractedJson.substring(Math.max(0, titleIndex - 200), titleIndex);
+              const afterTitle = extractedJson.substring(titleIndex, Math.min(extractedJson.length, titleIndex + 1000));
+
+              const keysMatch = afterTitle.match(/"keys"\s*:\s*"([^"]*)"/);
+              const valueMatch = afterTitle.match(/"value"\s*:\s*"([^"]*)"/);
+              const typeMatch = afterTitle.match(/"type"\s*:\s*"([^"]*)"/);
+
+              if (keysMatch || valueMatch) {
+                aiGeneratedCards.push({
+                  keys: keysMatch ? keysMatch[1] : "",
+                  value: valueMatch ? valueMatch[1] : "",
+                  type: typeMatch ? typeMatch[1] : "",
+                  title: match[1],
+                  description: "",
+                  useForCharacterCreation: false,
+                });
+                recoveredCards++;
+              }
+            }
+
+            if (recoveredCards > 0) {
+              console.log(`Recovered ${recoveredCards} cards from truncated JSON`);
+              onTaskUpdate({ id: res.id, status: "completed", output: `Partial parse: recovered ${recoveredCards} cards from truncated response` });
+              continue;
+            } else {
+              console.error(`Failed to parse or recover cards for ${res.id}:`, parseError);
+              onTaskUpdate({ id: res.id, status: "error", output: `Parse error: ${parseError}` });
               continue;
             }
           }
