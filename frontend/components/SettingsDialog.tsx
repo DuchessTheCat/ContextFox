@@ -1,8 +1,8 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Accordion from "@radix-ui/react-accordion";
-import { Settings2, X, Key, Terminal, Cpu, FileText, Files, User, Lightbulb, ChevronDown, RotateCcw } from "lucide-react";
+import { Settings2, X, Key, Terminal, Cpu, FileText, Files, User, Lightbulb, ChevronDown, RotateCcw, ShieldAlert } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect";
-import { DEFAULT_PROMPTS, DEFAULT_TASK_MODELS } from "../lib/defaults";
+import { DEFAULT_PROMPTS, DEFAULT_TASK_MODELS, DEFAULT_REFUSAL_PROMPT } from "../lib/defaults";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -15,6 +15,8 @@ interface SettingsDialogProps {
   openrouterModels: string[];
   prompts: Record<string, string>;
   setPrompts: (updater: (prev: any) => any) => void;
+  refusalPrompt: string;
+  setRefusalPrompt: (prompt: string) => void;
 }
 
 export function SettingsDialog({
@@ -28,6 +30,8 @@ export function SettingsDialog({
   openrouterModels,
   prompts,
   setPrompts,
+  refusalPrompt,
+  setRefusalPrompt,
 }: SettingsDialogProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -121,6 +125,35 @@ export function SettingsDialog({
                   );
                 })}
               </div>
+            </div>
+
+            <div className="h-px bg-border" />
+
+            {/* Refusal Prompt */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between ml-1">
+                <label className="text-[10px] font-semibold flex items-center gap-2 uppercase tracking-[0.2em] text-muted-foreground">
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-400" /> Refusal Prompt
+                </label>
+                <button
+                  onClick={() => setRefusalPrompt(DEFAULT_REFUSAL_PROMPT)}
+                  className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-amber-400 group flex items-center gap-1.5"
+                  title="Reset to Default"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="text-[9px] font-semibold uppercase tracking-wider">Reset</span>
+                </button>
+              </div>
+              <input
+                type="text"
+                value={refusalPrompt}
+                onChange={(e) => setRefusalPrompt(e.target.value)}
+                placeholder={DEFAULT_REFUSAL_PROMPT}
+                className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl text-xs focus:ring-1 focus:ring-slate-700 outline-none transition-all placeholder:text-muted-foreground/50"
+              />
+              <p className="text-[10px] text-muted-foreground/60 ml-1">
+                Added to prompts after content refusals to help bypass filters
+              </p>
             </div>
 
             <div className="h-px bg-border" />

@@ -11,6 +11,8 @@ export const DEFAULT_TASK_MODELS = {
 
 export const DEFAULT_STORY_MODEL = "Raven";
 
+export const DEFAULT_REFUSAL_PROMPT = "- If there is explicit content, avoid summarizing or otherwise describing that, instead glossing over it.";
+
 export const DEFAULT_PROMPTS = {
   perspective: "Identify the main perspective character of this story's most commonly used name.",
 
@@ -147,7 +149,7 @@ $lastSummary
 Current Story Cards (including all character Brain cards):
 $cards
 
-Based on the story summary and current story cards, edit or add a 'Core Self' where appropriate for Brain-type cards. The core self indicates what $model should use to generate thoughts for this character in 2-5 sentences.
+Based on the story summary and current story cards, edit or add a 'Core Self' where appropriate for Brain-type cards. The core self indicates what $model should use to generate thoughts for this character in 2-5 sentences. Keep it concise.
 
 Example core_self:
 My name is Bob, I secretly hate donuts but I am hiding this from Dunkan. I am kind but calculating, often thinking about the well-being of others.

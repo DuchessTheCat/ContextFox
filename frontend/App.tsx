@@ -14,7 +14,7 @@ import { ResultsPanel } from "./components/ResultsPanel";
 import { PipelineSidebar } from "./components/PipelineSidebar";
 import { IS_TAURI } from "./lib/utils";
 import { getOpenRouterModels, processCards } from "./lib/backend";
-import { DEFAULT_PROMPTS, DEFAULT_TASK_MODELS, DEFAULT_STORY_MODEL } from "./lib/defaults";
+import { DEFAULT_PROMPTS, DEFAULT_TASK_MODELS, DEFAULT_STORY_MODEL, DEFAULT_REFUSAL_PROMPT } from "./lib/defaults";
 import { saveFileContents, loadFileContents, deleteFileContents } from "./lib/storage";
 
 
@@ -67,6 +67,7 @@ function App() {
   const [storyModel, setStoryModel] = useState(DEFAULT_STORY_MODEL);
   const [taskModels, setTaskModels] = useState(DEFAULT_TASK_MODELS);
   const [prompts, setPrompts] = useState(DEFAULT_PROMPTS);
+  const [refusalPrompt, setRefusalPrompt] = useState(DEFAULT_REFUSAL_PROMPT);
 
   // Multi-Story State
   const [stories, setStories] = useState<Record<string, StoryState>>({
@@ -107,14 +108,15 @@ function App() {
   useEffect(() => {
     const initStore = async () => {
       try {
-        let savedKey, savedStoryModel, savedTaskModels, savedPrompts, savedStories, savedCurrentStoryId;
-        
+        let savedKey, savedStoryModel, savedTaskModels, savedPrompts, savedRefusalPrompt, savedStories, savedCurrentStoryId;
+
         if (IS_TAURI) {
           const store = await load("settings.json", { autoSave: true, defaults: {} });
           savedKey = await store.get<string>("openrouterKey");
           savedStoryModel = await store.get<string>("storyModel");
           savedTaskModels = await store.get<any>("taskModels");
           savedPrompts = await store.get<any>("prompts");
+          savedRefusalPrompt = await store.get<string>("refusalPrompt");
           savedStories = await store.get<Record<string, StoryState>>("stories");
           savedCurrentStoryId = await store.get<string>("currentStoryId");
         } else {
@@ -124,11 +126,12 @@ function App() {
           if (tm) savedTaskModels = JSON.parse(tm);
           const p = localStorage.getItem("prompts");
           if (p) savedPrompts = JSON.parse(p);
+          savedRefusalPrompt = localStorage.getItem("refusalPrompt");
           const s = localStorage.getItem("stories");
           if (s) savedStories = JSON.parse(s);
           savedCurrentStoryId = localStorage.getItem("currentStoryId");
         }
-        
+
         if (savedKey) {
           setOpenrouterKey(savedKey);
           fetchModels(savedKey);
@@ -136,6 +139,7 @@ function App() {
         if (savedStoryModel) setStoryModel(savedStoryModel);
         if (savedTaskModels) setTaskModels(prev => ({ ...prev, ...savedTaskModels }));
         if (savedPrompts) setPrompts(prev => ({ ...prev, ...savedPrompts }));
+        if (savedRefusalPrompt) setRefusalPrompt(savedRefusalPrompt);
         if (savedStories) setStories(savedStories);
         if (savedCurrentStoryId) setCurrentStoryId(savedCurrentStoryId);
       } catch (e) {
@@ -153,6 +157,7 @@ function App() {
         await store.set("storyModel", storyModel);
         await store.set("taskModels", taskModels);
         await store.set("prompts", prompts);
+        await store.set("refusalPrompt", refusalPrompt);
         await store.set("stories", stories);
         await store.set("currentStoryId", currentStoryId);
       } else {
@@ -160,13 +165,14 @@ function App() {
         localStorage.setItem("storyModel", storyModel);
         localStorage.setItem("taskModels", JSON.stringify(taskModels));
         localStorage.setItem("prompts", JSON.stringify(prompts));
+        localStorage.setItem("refusalPrompt", refusalPrompt);
         localStorage.setItem("stories", JSON.stringify(stories));
         localStorage.setItem("currentStoryId", currentStoryId);
       }
     } catch (e) {
       console.error("Failed to save settings", e);
     }
-  }, [openrouterKey, storyModel, taskModels, prompts, stories, currentStoryId]);
+  }, [openrouterKey, storyModel, taskModels, prompts, refusalPrompt, stories, currentStoryId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -594,6 +600,7 @@ function App() {
         plotEssentialsPrompt: prompts.plotEssentials,
         plotEssentialsWithContextPrompt: prompts.plotEssentialsWithContext,
         coreSelfPrompt: prompts.coreSelf,
+        refusalPrompt: refusalPrompt,
         onTaskUpdate: (update) => {
           setTasks(prev => {
             const exists = prev.some(t => t.id === update.id);
@@ -760,7 +767,7 @@ function App() {
         isProcessing={isProcessing}
       />
 
-      <SettingsDialog 
+      <SettingsDialog
         open={showSettings}
         onOpenChange={setShowSettings}
         openrouterKey={openrouterKey}
@@ -771,6 +778,8 @@ function App() {
         openrouterModels={openrouterModels}
         prompts={prompts}
         setPrompts={setPrompts}
+        refusalPrompt={refusalPrompt}
+        setRefusalPrompt={setRefusalPrompt}
       />
 
       <InspectorDialog

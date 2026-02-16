@@ -79,10 +79,17 @@ async function callOpenRouter(apiKey: string, model: string, prompt: string, con
   }
 
   const responseContent = json.choices[0].message.content;
+  const finishReason = json.choices[0].finish_reason;
+  const refusal = json.choices[0].message?.refusal;
 
   // Check if response was truncated
-  if (json.choices[0].finish_reason === "length") {
+  if (finishReason === "length") {
     console.warn("Response was truncated due to max_tokens limit");
+  }
+
+  // Check if content was refused
+  if (finishReason === "content_filter" || refusal) {
+    throw new Error("REFUSAL: " + (refusal || "Content filtered"));
   }
 
   return responseContent;
@@ -126,6 +133,7 @@ export interface ProcessCardsParams {
   plotEssentialsPrompt: string;
   plotEssentialsWithContextPrompt: string;
   coreSelfPrompt: string;
+  refusalPrompt: string;
   onTaskUpdate: (update: Partial<Task>) => void;
 }
 
@@ -162,6 +170,7 @@ export async function processCards(params: ProcessCardsParams) {
     plotEssentialsPrompt,
     plotEssentialsWithContextPrompt,
     coreSelfPrompt,
+    refusalPrompt,
     onTaskUpdate,
   } = params;
 
@@ -259,9 +268,10 @@ export async function processCards(params: ProcessCardsParams) {
 
     // Retry logic for perspective and title
     const callWithRetry = async (name: string, model: string, prompt: string) => {
+      let currentPrompt = prompt;
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          const res = await callOpenRouter(openrouterKey, model, prompt, storyContent);
+          const res = await callOpenRouter(openrouterKey, model, currentPrompt, storyContent);
           // Retry on empty response
           if (!res || res.trim().length === 0) {
             if (attempt === 0) {
@@ -273,6 +283,12 @@ export async function processCards(params: ProcessCardsParams) {
         } catch (e: any) {
           if (attempt === 0) {
             console.warn(`Retrying ${name} after error:`, e);
+            // Check if this was a refusal
+            if (e.message && e.message.includes("REFUSAL:")) {
+              console.log(`Detected refusal for ${name}, appending refusal prompt on retry`);
+              // Append refusal prompt before the hard rules (at end of soft rules)
+              currentPrompt = prompt + "\n\n" + refusalPrompt;
+            }
           } else {
             return { status: "rejected" as const, reason: e };
           }
@@ -371,10 +387,11 @@ export async function processCards(params: ProcessCardsParams) {
 
   const allResults = await Promise.all(tasksInfo.map(async (t) => {
     let lastError: any = null;
+    let currentPrompt = t.prompt;
     // Try twice on error
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const res = await callOpenRouter(openrouterKey, t.model, t.prompt, storyContent);
+        const res = await callOpenRouter(openrouterKey, t.model, currentPrompt, storyContent);
 
         // Check for empty response on critical tasks
         const isCriticalTask = t.type === 'summary';
@@ -390,6 +407,12 @@ export async function processCards(params: ProcessCardsParams) {
         lastError = e;
         if (attempt === 0) {
           console.warn(`Retrying ${t.id} after error:`, e);
+          // Check if this was a refusal
+          if (e.message && e.message.includes("REFUSAL:")) {
+            console.log(`Detected refusal for ${t.id}, appending refusal prompt on retry`);
+            // Append refusal prompt before the hard rules (at end of soft rules)
+            currentPrompt = t.prompt + "\n\n" + refusalPrompt;
+          }
         }
       }
     }
@@ -552,9 +575,10 @@ export async function processCards(params: ProcessCardsParams) {
 
     // Retry logic for plot essentials
     let plotRes: string = "";
+    let currentPlotPrompt = preparedPlotPrompt;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        plotRes = await callOpenRouter(openrouterKey, plotEssentialsModel, preparedPlotPrompt, storyContent);
+        plotRes = await callOpenRouter(openrouterKey, plotEssentialsModel, currentPlotPrompt, storyContent);
 
         // Retry on empty response
         if (!plotRes || plotRes.trim().length === 0) {
@@ -572,6 +596,13 @@ export async function processCards(params: ProcessCardsParams) {
       } catch (e: any) {
         if (attempt === 0) {
           console.warn(`Retrying plot essentials after error:`, e);
+          // Check if this was a refusal
+          if (e.message && e.message.includes("REFUSAL:")) {
+            console.log(`Detected refusal for plot essentials, appending refusal prompt on retry`);
+            // Append refusal prompt before the hard rules (at end of soft rules)
+            const plotHardRules = '\n\nReturn ONLY a JSON object in this format: { "plotEssentials": "..." }';
+            currentPlotPrompt = preparePrompt(plotPrompt + "\n\n" + refusalPrompt, plotHardRules);
+          }
         } else {
           onTaskUpdate({ id: `plotEssentials${partIndicator}`, status: "error", output: String(e) });
           throw e;
@@ -582,7 +613,16 @@ export async function processCards(params: ProcessCardsParams) {
     if (plotRes && plotRes.trim().length > 0) {
       try {
         const plotJson = JSON.parse(extractJson(plotRes));
-        newPlotEssentials = plotJson.plotEssentials || plotRes;
+        let plotValue = plotJson.plotEssentials || plotRes;
+
+        // If plot essentials is an array, convert to string
+        if (Array.isArray(plotValue)) {
+          plotValue = plotValue.join('\n\n');
+        } else if (typeof plotValue !== 'string') {
+          plotValue = String(plotValue);
+        }
+
+        newPlotEssentials = plotValue;
       } catch (parseError) {
         // If JSON parsing fails, try to extract plotEssentials field manually
         const plotMatch = plotRes.match(/"plotEssentials"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
@@ -629,9 +669,31 @@ export async function processCards(params: ProcessCardsParams) {
       output: "",
     });
 
+    // Retry logic for core self
+    let coreSelfRes: string = "";
+    let currentCoreSelfPrompt = preparedCoreSelfPrompt;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        coreSelfRes = await callOpenRouter(openrouterKey, coreSelfModel, currentCoreSelfPrompt, storyContent);
+        onTaskUpdate({ id: `coreSelf${partIndicator}`, status: "completed", output: coreSelfRes });
+        break;
+      } catch (e: any) {
+        if (attempt === 0) {
+          console.warn(`Retrying core self after error:`, e);
+          // Check if this was a refusal
+          if (e.message && e.message.includes("REFUSAL:")) {
+            console.log(`Detected refusal for core self, appending refusal prompt on retry`);
+            // Append refusal prompt before the hard rules (at end of soft rules)
+            currentCoreSelfPrompt = coreSelfPromptPrepared + "\n\n" + refusalPrompt + CORE_SELF_HARD_RULES;
+          }
+        } else {
+          onTaskUpdate({ id: `coreSelf${partIndicator}`, status: "error", output: String(e) });
+          throw e;
+        }
+      }
+    }
+
     try {
-      const coreSelfRes = await callOpenRouter(openrouterKey, coreSelfModel, preparedCoreSelfPrompt, storyContent);
-      onTaskUpdate({ id: `coreSelf${partIndicator}`, status: "completed", output: coreSelfRes });
       const coreSelfJson = JSON.parse(extractJson(coreSelfRes));
 
       if (Array.isArray(coreSelfJson.coreSelfUpdates)) {

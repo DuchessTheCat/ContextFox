@@ -55,9 +55,11 @@ export function FileList({
           <div className="grid grid-cols-1 gap-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2 ml-1">
-                  <FileText className="w-3 h-3 text-indigo-400" /> Story Source
-                </label>
+                <div className="flex items-center justify-between ml-1 h-[26px]">
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                    <FileText className="w-3 h-3 text-indigo-400" /> Story Source
+                  </label>
+                </div>
                 <button
                   onClick={selectStoryFile}
                   onDrop={handleStoryFileDrop}
@@ -79,7 +81,7 @@ export function FileList({
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between ml-1">
+                <div className="flex items-center justify-between ml-1 h-[26px]">
                   <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                     <FileJson className="w-3 h-3 text-emerald-400" /> Adventure Cards
                   </label>
