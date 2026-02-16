@@ -217,8 +217,12 @@ function App() {
     setCurrentStoryId(id);
   };
 
-  const deleteStory = (id: string) => {
+  const deleteStory = async (id: string) => {
     if (Object.keys(stories).length <= 1) return;
+
+    // Delete from IndexedDB
+    await deleteFileContents(id);
+
     setStories(prev => {
       const next = { ...prev };
       delete next[id];
@@ -340,6 +344,11 @@ function App() {
               const buffer = await file.arrayBuffer();
               const { parts } = await loadZipFile(buffer, file.name);
 
+              // Save to IndexedDB
+              await saveFileContents(currentStoryId, {
+                zipParts: Object.fromEntries(parts)
+              });
+
               updateCurrentStory({
                 storyPath: file.name,
                 lastLine: "",
@@ -354,6 +363,12 @@ function App() {
             }
           } else {
             const content = await file.text();
+
+            // Save to IndexedDB
+            await saveFileContents(currentStoryId, {
+              storyContent: content
+            });
+
             updateCurrentStory({
               storyPath: file.name,
               storyContent: content,
@@ -451,6 +466,12 @@ function App() {
         try {
           const content = await readTextFile(selected);
           const cards = JSON.parse(content);
+
+          // Save to IndexedDB
+          await saveFileContents(currentStoryId, {
+            cardsContent: content
+          });
+
           updateCurrentStory({
             cardsPath: selected,
             accumulatedCards: cards
@@ -471,7 +492,13 @@ function App() {
           const content = await file.text();
           try {
             const cards = JSON.parse(content);
-            updateCurrentStory({ 
+
+            // Save to IndexedDB
+            await saveFileContents(currentStoryId, {
+              cardsContent: content
+            });
+
+            updateCurrentStory({
               cardsPath: file.name,
               accumulatedCards: cards,
               cardsContent: content
@@ -552,8 +579,11 @@ function App() {
       let storyContent = currentStory.storyContent;
       let zipPartsMap: Map<number, string> | undefined = currentStory.zipParts;
 
-      // Reload file from disk if in Tauri mode
+      // Load file contents from IndexedDB or disk
+      const cachedContents = await loadFileContents(currentStoryId);
+
       if (IS_TAURI && currentStory.storyPath) {
+        // Tauri mode: reload from disk
         if (currentStory.isZipFile && currentStory.storyPath.endsWith('.zip')) {
           // Reload zip file
           try {
@@ -573,12 +603,16 @@ function App() {
           }
         }
       } else {
-        // Browser mode or no path - use cached data
-        if (currentStory.zipParts && !(currentStory.zipParts instanceof Map)) {
-          // Convert plain object back to Map with numeric keys
-          zipPartsMap = new Map(
-            Object.entries(currentStory.zipParts).map(([k, v]) => [parseInt(k, 10), v as string])
-          );
+        // Browser mode: use IndexedDB cache
+        if (cachedContents) {
+          if (cachedContents.zipParts) {
+            zipPartsMap = new Map(
+              Object.entries(cachedContents.zipParts).map(([k, v]) => [parseInt(k, 10), v])
+            );
+          }
+          if (cachedContents.storyContent) {
+            storyContent = cachedContents.storyContent;
+          }
         }
       }
 
