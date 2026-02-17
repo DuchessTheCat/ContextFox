@@ -49,6 +49,9 @@ export async function executeCoreSelf(
     status: "processing",
     context: `System:\n${preparedCoreSelfPrompt}\n\nContent:\n${storyContent}`,
     output: "",
+    model: coreSelfModel,
+    systemPrompt: preparedCoreSelfPrompt,
+    userContent: storyContent,
   });
 
   let coreSelfPromptWithRefusal = preparedCoreSelfPrompt;

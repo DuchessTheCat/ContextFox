@@ -28,6 +28,9 @@ export async function executePlotEssentials(
     status: "processing",
     context: `System:\n${plotPrompt}\n\nContent:\n${storyContent}`,
     output: "",
+    model: plotEssentialsModel,
+    systemPrompt: plotPrompt,
+    userContent: storyContent,
   });
 
   let plotPromptWithRefusal = plotPrompt;

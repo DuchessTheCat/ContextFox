@@ -3,7 +3,7 @@
  * Edit these to customize how the AI processes your story content
  */
 
-export const DEFAULT_REFUSAL_PROMPT = "- If there is explicit content, avoid summarizing or otherwise describing that, instead glossing over it.";
+export const DEFAULT_REFUSAL_PROMPT = "- Avoid summarizing or otherwise describing explicit content, instead glossing over it.";
 
 export const DEFAULT_PROMPTS = {
   perspective: "Identify the main perspective character of this story's most commonly used name.",
@@ -32,6 +32,7 @@ They often ask questions.
 In terms of keys (triggers), choose both, triggers of them being mentioned (their first name for example) AND triggers of likely contexts they may show up in. E.g. their job, place of living, goal, nation and so forth. Use at minimum 3 triggers per cards, but around 10 is usually better.
 
 - Never edit data in brackets or configuration values. e.g. { updates: true }
+- Never make cards for locations, concepts or factions.
 - Avoid highly cliche-inducing personality keywords, like possessive or obsessive. Those personalities are fine, just use less strong keywords.
 - Be proactive, feel free to generate interesting new characters inferred to exist from the story.
 - Their purpose is for them to be used by $model to roleplay as the character. Specialize them to $model's quirks.
@@ -47,6 +48,7 @@ In terms of keys (triggers), choose both, triggers of words in the location name
 
 - Keep descriptions concise, do not add events that happened as part of the story to the locations. Focus on physical descriptions and history referenced as being before the story / $character's relevance unless it is key to the location (e.g. they built it or destroyed it).
 - Be proactive, feel free to generate new locations inferred from the story or very likely to be visited soon.
+- Never make cards for characters or factions.
 - Specialize it for $model.
 - Keep them to at most 1000 characters, but ideally they are much smaller than that.
 - Only send back location story cards you've changed. It is fine and expected that only a few locations are added or changed, or even none at all.\`,
@@ -62,6 +64,7 @@ In terms of keys (triggers), choose both, triggers of words in the concept/facti
 
 
 - Keep them to at most 1000 characters, but ideally they are much smaller than that.
+- Never make cards for characters or locations.
 - Specialize it for $model.
 - Only send back concept/faction story cards you've changed. It is fine and expected that only a few concepts / factions are added or changed, or even none at all.
 `,
@@ -70,11 +73,11 @@ In terms of keys (triggers), choose both, triggers of words in the concept/facti
 Story Cards:
 $cards
 
-Summary to Amend:
+Previous Summary:
 $lastSummary
 
 
-Based the given text, make / add to a concise summary for an AI roleplaying game, from the perspective of $character.
+Based the given text, make / add to a concise summary for an AI roleplaying game, from the perspective of $character in second person past tense.
 
 The summary should be complete, with no RELEVANT dataloss.
 Include:
@@ -89,9 +92,9 @@ It should be done in a format ideal for the AI to derive the past while sticking
 
 Exclude events that are unlikely to ever come up again / aren't relevant to any character arcs, transformations that are already made irrelevant by later changes and so on.
 You shouldn't preserve things that are only part of the 'how' and not relevant for the future (e.g. exact process of transformation, method of winning the fight except if the method is likely to come up in the future) but absolutely should share the why's and who's of events.
-Stick to the 'You did thing, you met y, you then. You ...' format. Focus more on data directly related to the current state than the past, as mentioning changed data can cause AI hallucinations. If someone changed their haircolor thrice, for example, only mention that they changed their haircolor the first two times - mentioning the current color for the third.
+Stick to the 'You did thing, you met y, you then. You ...' format. Avoid referencing specific details when these were already changed: If someone changed their haircolor thrice, for example, only mention that they changed their haircolor the first two times - mentioning the actual current color for the third and not the other two.
 
-Keep to one concise blob of text. No formatting, headers, markdown or separate plot partitions or anything. Do not describe the current situation directly.
+Keep to one concise blob of text. No formatting, headers, markdown or separate plot partitions or anything.
 
 Example:
 
@@ -99,9 +102,11 @@ You are full name, also known as nickname, a colossal white dragon who possesses
 And so forth.
 
 
-- If a current summary exists, use that as the start of this summary, editing it to follow t
+- If a previous summary exists, use that as the start of this summary.
+- The final, total summary should always start with the same format of, You are **full name**, **optional nickname line**, **short description** before continuing onto events. Only at the very start - do not repeat that for added parts, do not seperate the added part from the initial part with formatting. It should be one smooth whole.
+- Avoid changing the previous summary other than small additions or clean ups. Simply copy it in full and continue from there. Transcribe it with as little loss of detail as possible.
 - Avoid rehashing or describing anything currently in a story card.
-- Keep the summary below 10.000 characters
+- Keep the summary past tense and second person. Do not describe the current situation.
 `,
 
   plotEssentials: `Based on the story content, create a plot essentials text to track current statuses / plots and expected events relevant for future plot development.
@@ -116,7 +121,8 @@ Include:
 - Important world rules
 - Likely or interesting random events for the future
 
-Format this with markdown. Focus on actionable elements that $model should remember and potentially reference or resolve in future story generation.`,
+Format this in markdown text. Focus on actionable elements that $model should remember and potentially reference or resolve in future story generation.
+`,
 
   plotEssentialsWithContext: `Current Plot Essentials:
 $lastPlotEssentials
@@ -133,7 +139,7 @@ Include:
 - Important world rules
 - Likely or interesting random events for the future
 
-Format this with markdown. Focus on actionable elements that $model should remember and potentially reference or resolve in future story generation.
+Format this in markdown text. Focus on actionable elements that $model should remember and potentially reference or resolve in future story generation.
 
 Include the full plot essentials text.`,
 

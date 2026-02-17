@@ -9,6 +9,8 @@ export function useCardToggle(
   updateCurrentStory: (updates: Partial<StoryState>) => void
 ) {
   function handleToggleExclude(title: string) {
+    if (!currentStory || !currentStory.accumulatedCards) return;
+
     const card = currentStory.accumulatedCards.find(c => c.title === title);
     if (!card) return;
 

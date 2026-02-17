@@ -46,32 +46,80 @@ export async function getOpenRouterModels(apiKey: string): Promise<ModelContextI
   return { models, contextLengths };
 }
 
+export interface OpenRouterOptions {
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  topK?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
+  thinkingEnabled?: boolean;
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+}
+
 export async function callOpenRouter(
   apiKey: string,
   model: string,
   prompt: string,
-  content: string
+  content: string,
+  options?: OpenRouterOptions
 ): Promise<string> {
+  const requestBody: any = {
+    model,
+    messages: [
+      { role: "system", content: prompt },
+      { role: "user", content: content },
+    ],
+    response_format: { type: "json_object" },
+    max_tokens: options?.maxTokens || 20000,
+  };
+
+  // Add optional parameters if provided
+  if (options?.temperature !== undefined) requestBody.temperature = options.temperature;
+  if (options?.topP !== undefined) requestBody.top_p = options.topP;
+  if (options?.topK !== undefined) requestBody.top_k = options.topK;
+  if (options?.frequencyPenalty !== undefined) requestBody.frequency_penalty = options.frequencyPenalty;
+  if (options?.presencePenalty !== undefined) requestBody.presence_penalty = options.presencePenalty;
+
+  // Add reasoning parameters
+  if (options?.thinkingEnabled) {
+    requestBody.reasoning = {
+      effort: options.reasoningEffort || "medium",
+    };
+  } else {
+    // Explicitly disable reasoning
+    requestBody.reasoning = {
+      effort: "none",
+    };
+  }
+
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: prompt },
-        { role: "user", content: content },
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 20000
-    }),
+    body: JSON.stringify(requestBody),
   });
 
-  const json = await response.json();
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`API request failed (${response.status}): ${errorText}`);
+  }
+
+  let json;
+  try {
+    json = await response.json();
+  } catch (e) {
+    throw new Error(`Failed to parse API response as JSON: ${e}`);
+  }
+
   if (json.error) {
     throw new Error(json.error.message || JSON.stringify(json.error));
+  }
+
+  if (!json.choices || !json.choices[0]) {
+    throw new Error("API response missing choices");
   }
 
   const responseContent = json.choices[0].message.content;

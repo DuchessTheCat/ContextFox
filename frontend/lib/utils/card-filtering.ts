@@ -62,6 +62,17 @@ export function mergeCards(
   return merged;
 }
 
+// For summary and plot essentials - minimal context
 export function stripCardsForContext(cards: StoryCard[]): { title: string; value: string }[] {
   return cards.map((c) => ({ title: c.title, value: c.value }));
+}
+
+// For card generation tasks - includes keys and type
+export function stripCardsForCardGeneration(cards: StoryCard[]): { title: string; keys: string; type?: string; value: string }[] {
+  return cards.map((c) => ({ title: c.title, keys: c.keys, type: c.type, value: c.value }));
+}
+
+// For core self - includes description
+export function stripCardsForCoreSelf(cards: StoryCard[]): { title: string; keys: string; type?: string; value: string; description?: string }[] {
+  return cards.map((c) => ({ title: c.title, keys: c.keys, type: c.type, value: c.value, description: c.description }));
 }

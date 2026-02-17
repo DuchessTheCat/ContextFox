@@ -36,6 +36,7 @@ export interface PersistedSettings {
   currentStoryId: string;
   customPresets: Record<string, any>;
   selectedPreset: string | null;
+  requirePermissionBetweenParts: boolean;
 }
 
 export function usePersistence(
@@ -50,6 +51,7 @@ export function usePersistence(
     setCurrentStoryId: (id: string) => void;
     setCustomPresets: (presets: Record<string, any>) => void;
     setSelectedPreset: (preset: string | null) => void;
+    setRequirePermissionBetweenParts: (value: boolean) => void;
   },
   fetchModels: (key: string) => void
 ) {
@@ -66,6 +68,7 @@ export function usePersistence(
         let savedCurrentStoryId: string | null = null;
         let savedCustomPresets: Record<string, any> | null = null;
         let savedSelectedPreset: string | null = null;
+        let savedRequirePermissionBetweenParts: boolean | null = null;
 
         if (IS_TAURI) {
           const store = await load("settings.json", { autoSave: true, defaults: {} });
@@ -78,6 +81,7 @@ export function usePersistence(
           savedCurrentStoryId = (await store.get<string>("currentStoryId")) ?? null;
           savedCustomPresets = (await store.get<Record<string, any>>("customPresets")) ?? null;
           savedSelectedPreset = (await store.get<string>("selectedPreset")) ?? null;
+          savedRequirePermissionBetweenParts = (await store.get<boolean>("requirePermissionBetweenParts")) ?? null;
         } else {
           savedKey = localStorage.getItem("openrouterKey");
           savedStoryModel = localStorage.getItem("storyModel");
@@ -92,6 +96,8 @@ export function usePersistence(
           const cp = localStorage.getItem("customPresets");
           if (cp) savedCustomPresets = JSON.parse(cp);
           savedSelectedPreset = localStorage.getItem("selectedPreset");
+          const rpbp = localStorage.getItem("requirePermissionBetweenParts");
+          if (rpbp) savedRequirePermissionBetweenParts = JSON.parse(rpbp);
         }
 
         if (savedKey) {
@@ -119,6 +125,7 @@ export function usePersistence(
         if (savedRefusalPrompt) setters.setRefusalPrompt(savedRefusalPrompt);
         if (savedStories) setters.setStories(savedStories);
         if (savedCurrentStoryId) setters.setCurrentStoryId(savedCurrentStoryId);
+        if (savedRequirePermissionBetweenParts !== null) setters.setRequirePermissionBetweenParts(savedRequirePermissionBetweenParts);
       } catch (e) {
         console.error("Failed to load settings", e);
       }
@@ -140,6 +147,7 @@ export function usePersistence(
         await store.set("currentStoryId", settings.currentStoryId);
         await store.set("customPresets", settings.customPresets);
         await store.set("selectedPreset", settings.selectedPreset);
+        await store.set("requirePermissionBetweenParts", settings.requirePermissionBetweenParts);
       } else {
         localStorage.setItem("openrouterKey", settings.openrouterKey);
         localStorage.setItem("storyModel", settings.storyModel);
@@ -150,6 +158,7 @@ export function usePersistence(
         localStorage.setItem("refusalPrompt", settings.refusalPrompt);
         localStorage.setItem("stories", JSON.stringify(settings.stories));
         localStorage.setItem("currentStoryId", settings.currentStoryId);
+        localStorage.setItem("requirePermissionBetweenParts", JSON.stringify(settings.requirePermissionBetweenParts));
       }
     } catch (e) {
       console.error("Failed to save settings", e);

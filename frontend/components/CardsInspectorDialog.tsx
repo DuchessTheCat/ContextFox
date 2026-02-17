@@ -35,7 +35,12 @@ export function CardsInspectorDialog({
     setEditingCard(null);
   };
 
-  const filteredCards = cards.filter(
+  // Deduplicate cards by title first (in case there are duplicates)
+  const uniqueCards = Array.from(
+    new Map(cards.map(card => [card.title, card])).values()
+  );
+
+  const filteredCards = uniqueCards.filter(
     (card) =>
       card.title.toLowerCase().includes(search.toLowerCase()) ||
       card.value.toLowerCase().includes(search.toLowerCase()) ||
@@ -79,7 +84,7 @@ export function CardsInspectorDialog({
           <div>
             <h2 className="text-lg font-bold">Adventure Cards Inspector</h2>
             <p className="text-xs text-muted-foreground mt-1">
-              {filteredCards.length} of {cards.length} cards
+              {filteredCards.length} of {uniqueCards.length} cards
             </p>
           </div>
           <button

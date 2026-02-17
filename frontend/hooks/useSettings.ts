@@ -15,6 +15,7 @@ export function useSettings() {
   const [prompts, setPrompts] = useState(DEFAULT_PROMPTS);
   const [refusalPrompt, setRefusalPrompt] = useState(DEFAULT_REFUSAL_PROMPT);
   const [modelContextLengths, setModelContextLengths] = useState<Record<string, number>>({});
+  const [requirePermissionBetweenParts, setRequirePermissionBetweenParts] = useState(false);
 
   return {
     openrouterKey,
@@ -33,5 +34,7 @@ export function useSettings() {
     setRefusalPrompt,
     modelContextLengths,
     setModelContextLengths,
+    requirePermissionBetweenParts,
+    setRequirePermissionBetweenParts,
   };
 }

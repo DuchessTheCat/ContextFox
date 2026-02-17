@@ -33,4 +33,7 @@ export interface Task {
   status: 'waiting' | 'processing' | 'completed' | 'error';
   context?: string;
   output?: string;
+  model?: string;
+  systemPrompt?: string;
+  userContent?: string;
 }

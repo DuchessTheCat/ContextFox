@@ -1,4 +1,4 @@
-import { Clock, CheckCircle2, AlertCircle, Eye, Activity } from "lucide-react";
+import { Clock, CheckCircle2, AlertCircle, Eye, Activity, Play, Pause } from "lucide-react";
 import { Task } from "../types";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -12,6 +12,8 @@ interface PipelineSidebarProps {
   selectedTask: Task | null;
   setSelectedTask: (task: Task | null) => void;
   isProcessing: boolean;
+  waitingForContinue?: boolean;
+  onContinue?: () => void;
 }
 
 export function PipelineSidebar({
@@ -19,6 +21,8 @@ export function PipelineSidebar({
   selectedTask,
   setSelectedTask,
   isProcessing,
+  waitingForContinue,
+  onContinue,
 }: PipelineSidebarProps) {
   return (
     <aside className="w-72 border-r border-border bg-card/20 flex flex-col h-full overflow-hidden">
@@ -47,21 +51,21 @@ export function PipelineSidebar({
           </div>
         )}
         {tasks.map(task => (
-          <div 
-            key={task.id} 
+          <div
+            key={task.id}
             onClick={() => setSelectedTask(task)}
             className={cn(
               "flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group",
-              selectedTask?.id === task.id 
+              selectedTask?.id === task.id
                 ? "bg-indigo-500/10 border-indigo-500/30 shadow-sm"
                 : "bg-muted/5 border-border hover:border-slate-700 hover:bg-muted/20"
             )}
           >
             <div className="flex items-center gap-3 overflow-hidden">
               <div className="shrink-0">
-                {task.status === 'processing' ? <Clock className="w-4 h-4 text-amber-400 animate-spin" /> : 
-                 task.status === 'completed' ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : 
-                 task.status === 'error' ? <AlertCircle className="w-4 h-4 text-destructive" /> : 
+                {task.status === 'processing' ? <Clock className="w-4 h-4 text-amber-400 animate-spin" /> :
+                 task.status === 'completed' ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> :
+                 task.status === 'error' ? <AlertCircle className="w-4 h-4 text-destructive" /> :
                  <Clock className="w-4 h-4 text-muted-foreground" />}
               </div>
               <span className={cn(
@@ -77,6 +81,27 @@ export function PipelineSidebar({
             )} />
           </div>
         ))}
+
+        {waitingForContinue && onContinue && (
+          <div className="mt-4 p-4 bg-amber-500/10 border-2 border-amber-500/30 rounded-xl animate-pulse">
+            <div className="flex items-center gap-2 mb-2">
+              <Pause className="w-4 h-4 text-amber-400" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-400">
+                Waiting for Permission
+              </span>
+            </div>
+            <p className="text-[9px] text-muted-foreground mb-3">
+              Part complete. Click to continue to next part.
+            </p>
+            <button
+              onClick={onContinue}
+              className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-all flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-wider"
+            >
+              <Play className="w-3.5 h-3.5" />
+              Continue Processing
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="p-4 border-t border-border bg-muted/5">

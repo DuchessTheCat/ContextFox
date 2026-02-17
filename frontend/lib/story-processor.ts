@@ -3,15 +3,16 @@
  */
 
 import { StoryCard, Task } from "../types";
-import { callOpenRouter as apiCallOpenRouter } from "./api/api-client";
+import { callOpenRouter as apiCallOpenRouter, OpenRouterOptions } from "./api/api-client";
 import { extractSingleFileContent, extractZipPartContent, getPartIndicator } from "./content/content-extraction";
-import { separateCards, mergeCards, stripCardsForContext, isBrainCard } from "./utils/card-filtering";
+import { separateCards, mergeCards, stripCardsForContext, stripCardsForCardGeneration, stripCardsForCoreSelf, isBrainCard } from "./utils/card-filtering";
 import { preparePrompt, HARD_RULES } from "./utils/prompt-builder";
 import { executePerspectiveAndTitle } from "./executors/perspective-title-executor";
 import { executeCardGenerationTasks } from "./executors/card-generation-executor";
 import { createTaskDefinitions } from "./utils/task-definitions";
 import { executePlotEssentials } from "./executors/plot-essentials-executor";
 import { executeCoreSelf } from "./executors/core-self-executor";
+import { ModelConfig, getModelConfig } from "../types/modelConfig";
 
 export interface StoryProcessorParams {
   storyContent: string;
@@ -19,11 +20,11 @@ export interface StoryProcessorParams {
   currentPart: number;
   isZipFile: boolean;
   zipParts?: Map<number, string>;
-  lastSummary: string;
-  lastCards: string;
-  lastPlotEssentials: string;
-  lastCharacter: string;
-  lastStoryTitle: string;
+  getLastSummary: () => string;
+  getLastCards: () => string;
+  getLastPlotEssentials: () => string;
+  getLastCharacter: () => string;
+  getLastStoryTitle: () => string;
   excludedCardTitles: string[];
   includedCardTitles: string[];
   openrouterKey: string;
@@ -46,7 +47,9 @@ export interface StoryProcessorParams {
   plotEssentialsWithContextPrompt: string;
   coreSelfPrompt: string;
   refusalPrompt: string;
+  modelConfigs: Record<string, ModelConfig>;
   onTaskUpdate: (update: Partial<Task>) => void;
+  onTaskComplete?: (taskId: string, taskType: string, parsedResult: any) => void;
 }
 
 export interface StoryProcessorResult {
@@ -63,9 +66,23 @@ function callOpenRouter(
   apiKey: string,
   model: string,
   prompt: string,
-  content: string
+  content: string,
+  options?: OpenRouterOptions
 ): Promise<string> {
-  return apiCallOpenRouter(apiKey, model, prompt, content);
+  return apiCallOpenRouter(apiKey, model, prompt, content, options);
+}
+
+function modelConfigToOptions(config: ModelConfig): OpenRouterOptions {
+  return {
+    temperature: config.temperature,
+    maxTokens: config.maxTokens,
+    topP: config.topP,
+    topK: config.topK,
+    frequencyPenalty: config.frequencyPenalty,
+    presencePenalty: config.presencePenalty,
+    thinkingEnabled: config.thinkingEnabled,
+    reasoningEffort: config.reasoningEffort,
+  };
 }
 
 export async function processStory(params: StoryProcessorParams): Promise<StoryProcessorResult> {
@@ -75,11 +92,11 @@ export async function processStory(params: StoryProcessorParams): Promise<StoryP
     currentPart,
     isZipFile,
     zipParts,
-    lastSummary,
-    lastCards,
-    lastPlotEssentials,
-    lastCharacter,
-    lastStoryTitle,
+    getLastSummary,
+    getLastCards,
+    getLastPlotEssentials,
+    getLastCharacter,
+    getLastStoryTitle,
     excludedCardTitles,
     includedCardTitles,
     openrouterKey,
@@ -102,8 +119,29 @@ export async function processStory(params: StoryProcessorParams): Promise<StoryP
     plotEssentialsWithContextPrompt,
     coreSelfPrompt,
     refusalPrompt,
+    modelConfigs,
     onTaskUpdate,
+    onTaskComplete,
   } = params;
+
+  // Get initial values
+  let lastSummary = getLastSummary();
+  let lastCards = getLastCards();
+  let lastPlotEssentials = getLastPlotEssentials();
+  let lastCharacter = getLastCharacter();
+  let lastStoryTitle = getLastStoryTitle();
+
+  // Create a model-aware callOpenRouter wrapper
+  const callOpenRouterWithConfig = (
+    key: string,
+    model: string,
+    prompt: string,
+    content: string
+  ): Promise<string> => {
+    const config = getModelConfig(model, modelConfigs);
+    const options = modelConfigToOptions(config);
+    return callOpenRouter(key, model, prompt, content, options);
+  };
 
   // Extract content
   const extraction = isZipFile && zipParts
@@ -115,30 +153,7 @@ export async function processStory(params: StoryProcessorParams): Promise<StoryP
   const newPart = extraction.newPart;
   const partIndicator = getPartIndicator(isZipFile, zipParts, currentPart);
 
-  // Detect perspective and title (only on part 1)
-  let character = lastCharacter;
-  let storyTitle = lastStoryTitle;
-
-  if (currentPart === 1 && (!lastCharacter || !lastStoryTitle)) {
-    const result = await executePerspectiveAndTitle(
-      storyContent,
-      lastCharacter,
-      lastStoryTitle,
-      preparePrompt(perspectivePrompt, HARD_RULES.PERSPECTIVE, {}),
-      preparePrompt(titlePrompt, HARD_RULES.TITLE, {}),
-      perspectiveModel,
-      titleModel,
-      openrouterKey,
-      refusalPrompt,
-      onTaskUpdate,
-      callOpenRouter
-    );
-
-    character = result.character;
-    storyTitle = result.storyTitle;
-  }
-
-  // Parse and separate existing cards
+  // Parse and separate existing cards first (needed for variables)
   const oldCards: StoryCard[] = (() => {
     try {
       return JSON.parse(lastCards);
@@ -147,41 +162,162 @@ export async function processStory(params: StoryProcessorParams): Promise<StoryP
     }
   })();
 
-  const { excludedCards, regularCards } = separateCards(oldCards, excludedCardTitles, includedCardTitles);
-  const cardsContext = JSON.stringify(stripCardsForContext(regularCards), null, 2);
+  const { regularCards } = separateCards(oldCards, excludedCardTitles, includedCardTitles);
 
-  const variables = { storyModel, character, storyTitle, lastSummary, lastPlotEssentials, cardsContext };
+  // Different card contexts for different tasks (used for perspective/title if needed)
+  const cardsMinimal = JSON.stringify(stripCardsForContext(regularCards), null, 2);
 
-  // Generate cards and summary
+  // Build base variables object
+  let character = lastCharacter;
+  let storyTitle = lastStoryTitle;
+  const baseVariables = { storyModel, character, storyTitle, lastSummary, lastPlotEssentials };
+
+  // Detect perspective and title (only on part 1) - uses minimal cards
+  if (currentPart === 1 && (!lastCharacter || !lastStoryTitle)) {
+    const result = await executePerspectiveAndTitle(
+      storyContent,
+      lastCharacter,
+      lastStoryTitle,
+      preparePrompt(perspectivePrompt, HARD_RULES.PERSPECTIVE, { ...baseVariables, cardsContext: cardsMinimal }),
+      preparePrompt(titlePrompt, HARD_RULES.TITLE, { ...baseVariables, cardsContext: cardsMinimal }),
+      perspectiveModel,
+      titleModel,
+      openrouterKey,
+      refusalPrompt,
+      onTaskUpdate,
+      callOpenRouterWithConfig
+    );
+
+    character = result.character;
+    storyTitle = result.storyTitle;
+
+    // Update base variables with newly detected character/title
+    baseVariables.character = character;
+    baseVariables.storyTitle = storyTitle;
+  }
+
+  // Re-read fresh values before building prompts (in case retry happened)
+  lastSummary = getLastSummary();
+  lastCards = getLastCards();
+  lastPlotEssentials = getLastPlotEssentials();
+  lastCharacter = getLastCharacter() || character;
+  lastStoryTitle = getLastStoryTitle() || storyTitle;
+
+  // Update base variables with fresh values
+  baseVariables.lastSummary = lastSummary;
+  baseVariables.lastPlotEssentials = lastPlotEssentials;
+  baseVariables.character = lastCharacter;
+  baseVariables.storyTitle = lastStoryTitle;
+
+  // Parse fresh cards
+  const freshOldCards: StoryCard[] = (() => {
+    try {
+      return JSON.parse(lastCards);
+    } catch {
+      return oldCards;
+    }
+  })();
+  const { excludedCards: freshExcludedCards, regularCards: freshRegularCards } = separateCards(freshOldCards, excludedCardTitles, includedCardTitles);
+
+  // Helper to get filtered cards context
+  const getCardsForCardGeneration = () => {
+    try {
+      const cards = JSON.parse(getLastCards());
+      const { regularCards } = separateCards(cards, excludedCardTitles, includedCardTitles);
+      return JSON.stringify(stripCardsForCardGeneration(regularCards), null, 2);
+    } catch {
+      return '[]';
+    }
+  };
+
+  const getCardsMinimal = () => {
+    try {
+      const cards = JSON.parse(getLastCards());
+      const { regularCards } = separateCards(cards, excludedCardTitles, includedCardTitles);
+      return JSON.stringify(stripCardsForContext(regularCards), null, 2);
+    } catch {
+      return '[]';
+    }
+  };
+
+  // Generate cards and summary - card tasks get full card context, summary gets minimal
   const { cards: aiGeneratedCards, summary: newSummary } = await executeCardGenerationTasks(
     createTaskDefinitions(
       {
-        characters: preparePrompt(charactersPrompt, HARD_RULES.CARDS, variables),
-        locations: preparePrompt(locationsPrompt, HARD_RULES.CARDS, variables),
-        concepts: preparePrompt(conceptsPrompt, HARD_RULES.CARDS, variables),
-        summary: preparePrompt(summaryPrompt, HARD_RULES.SUMMARY, variables),
+        characters: () => {
+          const vars = {
+            storyModel,
+            character: getLastCharacter() || character,
+            storyTitle: getLastStoryTitle() || storyTitle,
+            lastSummary: getLastSummary(),
+            lastPlotEssentials: getLastPlotEssentials(),
+            cardsContext: getCardsForCardGeneration()
+          };
+          return preparePrompt(charactersPrompt, HARD_RULES.CARDS, vars);
+        },
+        locations: () => {
+          const vars = {
+            storyModel,
+            character: getLastCharacter() || character,
+            storyTitle: getLastStoryTitle() || storyTitle,
+            lastSummary: getLastSummary(),
+            lastPlotEssentials: getLastPlotEssentials(),
+            cardsContext: getCardsForCardGeneration()
+          };
+          return preparePrompt(locationsPrompt, HARD_RULES.CARDS, vars);
+        },
+        concepts: () => {
+          const vars = {
+            storyModel,
+            character: getLastCharacter() || character,
+            storyTitle: getLastStoryTitle() || storyTitle,
+            lastSummary: getLastSummary(),
+            lastPlotEssentials: getLastPlotEssentials(),
+            cardsContext: getCardsForCardGeneration()
+          };
+          return preparePrompt(conceptsPrompt, HARD_RULES.CARDS, vars);
+        },
+        summary: () => {
+          const vars = {
+            storyModel,
+            character: getLastCharacter() || character,
+            storyTitle: getLastStoryTitle() || storyTitle,
+            lastSummary: getLastSummary(),
+            lastPlotEssentials: getLastPlotEssentials(),
+            cardsContext: getCardsMinimal()
+          };
+          return preparePrompt(summaryPrompt, HARD_RULES.SUMMARY, vars);
+        },
       },
       { characters: charactersModel, locations: locationsModel, concepts: conceptsModel, summary: summaryModel },
       partIndicator
     ),
     storyContent,
-    lastSummary,
+    getLastSummary,
     openrouterKey,
     refusalPrompt,
     onTaskUpdate,
-    callOpenRouter
+    callOpenRouterWithConfig
   );
 
-  const finalCards = [...mergeCards(regularCards, aiGeneratedCards), ...excludedCards];
+  const finalCards = [...mergeCards(freshRegularCards, aiGeneratedCards), ...freshExcludedCards];
+
+  // Update base variables with NEW summary for plot essentials and core self
+  baseVariables.lastSummary = newSummary;
 
   // Execute plot essentials and core self in parallel
   const parallelTasks: Promise<{ type: "plot" | "coreSelf"; result: any }>[] = [];
 
   if (plotEssentialsModel !== "None") {
+    // Check if we have existing plot essentials (non-empty and not just whitespace)
+    const hasExistingPlotEssentials = lastPlotEssentials && lastPlotEssentials.trim().length > 0;
+
+    // Plot essentials uses minimal card context
+    const cardsMinimalUpdated = JSON.stringify(stripCardsForContext(finalCards), null, 2);
     const plotPrompt = preparePrompt(
-      lastPlotEssentials?.trim() ? plotEssentialsWithContextPrompt : plotEssentialsPrompt,
-      "",
-      variables
+      hasExistingPlotEssentials ? plotEssentialsWithContextPrompt : plotEssentialsPrompt,
+      HARD_RULES.PLOT_ESSENTIALS,
+      { ...baseVariables, cardsContext: cardsMinimalUpdated }
     );
 
     parallelTasks.push(
@@ -195,25 +331,33 @@ export async function processStory(params: StoryProcessorParams): Promise<StoryP
         refusalPrompt,
         partIndicator,
         onTaskUpdate,
-        callOpenRouter
+        callOpenRouterWithConfig
       ).then((result) => ({ type: "plot" as const, result }))
     );
   }
 
   if (coreSelfModel !== "None") {
+    // Core self uses full card context INCLUDING description
+    const cardsForCoreSelfContext = JSON.stringify(stripCardsForCoreSelf(finalCards), null, 2);
+    const preparedCoreSelfPrompt = preparePrompt(
+      coreSelfPrompt,
+      "", // Don't add hard rules here - executor adds them
+      { ...baseVariables, cardsContext: cardsForCoreSelfContext }
+    );
+
     parallelTasks.push(
       executeCoreSelf(
         storyContent,
         finalCards,
         newSummary,
-        coreSelfPrompt,
+        preparedCoreSelfPrompt,
         coreSelfModel,
         openrouterKey,
         refusalPrompt,
         partIndicator,
         isBrainCard,
         onTaskUpdate,
-        callOpenRouter
+        callOpenRouterWithConfig
       ).then((result) => ({ type: "coreSelf" as const, result }))
     );
   }
@@ -226,8 +370,13 @@ export async function processStory(params: StoryProcessorParams): Promise<StoryP
   for (const result of results) {
     if (result.type === "plot") {
       newPlotEssentials = result.result;
+      // Store in callback so retry detection works
+      if (onTaskComplete) {
+        onTaskComplete('plot-essentials', 'plotEssentials', newPlotEssentials);
+      }
     } else if (result.type === "coreSelf") {
       updatedFinalCards = result.result;
+      // Core self updates cards, already handled by card onTaskComplete
     }
   }
 

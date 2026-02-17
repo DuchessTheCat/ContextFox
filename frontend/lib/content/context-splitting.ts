@@ -41,7 +41,7 @@ export function getMinimumContextLength(
  * Split file content into halves if needed, splitting on line boundaries
  */
 export function splitContentIfNeeded(content: string, minContextLength: number): string[] {
-  if (minContextLength > 0 && minContextLength < 150000) {
+  if (minContextLength > 0 && minContextLength < 200000) {
     const lines = content.split("\n");
     const midpoint = Math.floor(lines.length / 2);
     const firstHalf = lines.slice(0, midpoint).join("\n");
@@ -60,7 +60,7 @@ export function applySplitting(
   minContextLength: number
 ): { zipParts?: Map<number, string>; storyContent?: string; isZipFile: boolean } {
   // If context is sufficient, return as-is
-  if (minContextLength === 0 || minContextLength >= 150000) {
+  if (minContextLength === 0 || minContextLength >= 200000) {
     return fileContent;
   }
 

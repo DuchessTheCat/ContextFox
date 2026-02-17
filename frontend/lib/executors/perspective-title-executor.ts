@@ -30,6 +30,9 @@ export async function executePerspectiveAndTitle(
     status: "processing",
     context: `System:\n${perspectivePrompt}\n\nContent:\n${storyContent}`,
     output: "",
+    model: perspectiveModel,
+    systemPrompt: perspectivePrompt,
+    userContent: storyContent,
   });
 
   onTaskUpdate({
@@ -38,6 +41,9 @@ export async function executePerspectiveAndTitle(
     status: "processing",
     context: `System:\n${titlePrompt}\n\nContent:\n${storyContent}`,
     output: "",
+    model: titleModel,
+    systemPrompt: titlePrompt,
+    userContent: storyContent,
   });
 
   let character = lastCharacter;

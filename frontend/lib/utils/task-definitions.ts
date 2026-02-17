@@ -5,17 +5,17 @@
 export interface TaskDefinition {
   id: string;
   name: string;
-  prompt: string;
+  prompt: string | (() => string);
   model: string;
   type: "cards" | "summary";
 }
 
 export function createTaskDefinitions(
   prompts: {
-    characters: string;
-    locations: string;
-    concepts: string;
-    summary: string;
+    characters: string | (() => string);
+    locations: string | (() => string);
+    concepts: string | (() => string);
+    summary: string | (() => string);
   },
   models: {
     characters: string;

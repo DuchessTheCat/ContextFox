@@ -1,7 +1,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Accordion from "@radix-ui/react-accordion";
 import * as React from "react";
-import { Settings2, X, Key, Terminal, Cpu, FileText, Files, User, Lightbulb, ChevronDown, RotateCcw, ShieldAlert } from "lucide-react";
+import { Settings2, X, Key, Terminal, Cpu, FileText, Files, User, Lightbulb, ChevronDown, RotateCcw, ShieldAlert, Settings } from "lucide-react";
 import { SearchableSelect } from "./ui/SearchableSelect";
 import { DEFAULT_PROMPTS, DEFAULT_REFUSAL_PROMPT } from "../config/prompts";
 import { DEFAULT_TASK_MODELS, MODEL_PRESETS } from "../config/models";
@@ -23,6 +23,9 @@ interface SettingsDialogProps {
   setPrompts: (updater: (prev: any) => any) => void;
   refusalPrompt: string;
   setRefusalPrompt: (prompt: string) => void;
+  requirePermissionBetweenParts: boolean;
+  setRequirePermissionBetweenParts: (value: boolean) => void;
+  onOpenModelConfig?: () => void;
 }
 
 export function SettingsDialog({
@@ -42,6 +45,9 @@ export function SettingsDialog({
   setPrompts,
   refusalPrompt,
   setRefusalPrompt,
+  requirePermissionBetweenParts,
+  setRequirePermissionBetweenParts,
+  onOpenModelConfig,
 }: SettingsDialogProps) {
   // When dialog opens, ensure taskModels match the selected preset
   React.useEffect(() => {
@@ -130,20 +136,32 @@ export function SettingsDialog({
                 <h3 className="text-sm font-semibold flex items-center gap-2 uppercase tracking-widest text-foreground">
                   <Cpu className="w-5 h-5 text-indigo-400" /> AI Model Assignments
                 </h3>
-                <button
-                  onClick={() => {
-                    // Clear all custom presets
-                    setCustomPresets({});
-                    // Reset to default models
-                    setTaskModels(() => ({ ...DEFAULT_TASK_MODELS }));
-                    setSelectedPreset("default");
-                  }}
-                  className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-amber-400 group flex items-center gap-1.5"
-                  title="Reset All Models to Defaults"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span className="text-[9px] font-semibold uppercase tracking-wider">Reset</span>
-                </button>
+                <div className="flex gap-2">
+                  {onOpenModelConfig && (
+                    <button
+                      onClick={onOpenModelConfig}
+                      className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-indigo-400 group flex items-center gap-1.5"
+                      title="Model Configuration"
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                      <span className="text-[9px] font-semibold uppercase tracking-wider">Configure</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      // Clear all custom presets
+                      setCustomPresets({});
+                      // Reset to default models
+                      setTaskModels(() => ({ ...DEFAULT_TASK_MODELS }));
+                      setSelectedPreset("default");
+                    }}
+                    className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-amber-400 group flex items-center gap-1.5"
+                    title="Reset All Models to Defaults"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span className="text-[9px] font-semibold uppercase tracking-wider">Reset</span>
+                  </button>
+                </div>
               </div>
 
               {/* Model Presets Tab Bar */}
@@ -244,6 +262,29 @@ export function SettingsDialog({
               <p className="text-[10px] text-muted-foreground/60 ml-1">
                 Added to prompts after content refusals to help bypass filters
               </p>
+            </div>
+
+            <div className="h-px bg-border" />
+
+            {/* Processing Options */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2 uppercase tracking-widest text-foreground ml-1">
+                Processing Options
+              </h3>
+              <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-muted/20 transition-all">
+                <input
+                  type="checkbox"
+                  checked={requirePermissionBetweenParts}
+                  onChange={(e) => setRequirePermissionBetweenParts(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 text-indigo-500 rounded focus:ring-2 focus:ring-indigo-400"
+                />
+                <div className="flex-1">
+                  <div className="text-sm font-medium">Require Permission Between Parts</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Pause processing after each part and wait for manual confirmation before continuing to the next part
+                  </p>
+                </div>
+              </label>
             </div>
 
             <div className="h-px bg-border" />
