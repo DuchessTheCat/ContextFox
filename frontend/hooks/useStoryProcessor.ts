@@ -193,7 +193,7 @@ export function useStoryProcessor() {
         name: currentValuesRef.current.storyTitle || freshStory.name
       };
 
-      console.log('[SAVE] Saving to state - summary:', updates.accumulatedSummary?.substring(0, 80), 'cards:', updates.accumulatedCards.length);
+      console.log('[SAVE] Saving to state - summary:', updates.accumulatedSummary?.substring(0, 80), 'cards:', updates.accumulatedCards?.length || 0);
       updateCurrentStory(updates);
 
       if (hasMoreParts) {

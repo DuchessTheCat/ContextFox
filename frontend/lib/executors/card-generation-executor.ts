@@ -2,7 +2,7 @@
  * Executes card generation tasks (characters, locations, concepts) in parallel
  */
 
-import { StoryCard, Task } from "../../types";
+import { Task } from "../../types";
 import { TaskDefinition } from "../utils/task-definitions";
 import { parseCardsResponse, parseSummaryResponse } from "../parsing/json-parsing";
 
