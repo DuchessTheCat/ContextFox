@@ -44,11 +44,10 @@ export function ResultsPanel({
             </label>
             <button
               onClick={() => copyToClipboard(currentStory.accumulatedSummary, setCopiedSummary)}
-              className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-indigo-400 group flex items-center gap-2"
+              className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-indigo-400 group"
               title="Copy Summary to Clipboard"
             >
               {copiedSummary ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />}
-              <span className="text-[10px] font-semibold uppercase tracking-wider">{copiedSummary ? "Copied" : "Copy"}</span>
             </button>
           </div>
           <textarea
@@ -62,32 +61,29 @@ export function ResultsPanel({
         <div className="space-y-3">
           <div className="flex items-center justify-between ml-1">
             <label className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-              <FileJson className="w-3.5 h-3.5 text-emerald-400" /> Story Cards JSON
+              <FileJson className="w-3.5 h-3.5 text-emerald-400" /> Story Cards
             </label>
             <div className="flex items-center gap-1">
               <button
                 onClick={onOpenCardsInspector}
-                className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-indigo-400 group flex items-center gap-2"
+                className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-indigo-400 group"
                 title="Inspect Cards"
               >
                 <Eye className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider">Inspect</span>
               </button>
               <button
                 onClick={() => copyToClipboard(JSON.stringify(currentStory.accumulatedCards, null, 2), setCopiedCards)}
-                className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-indigo-400 group flex items-center gap-2"
+                className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-indigo-400 group"
                 title="Copy Cards to Clipboard"
               >
                 {copiedCards ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />}
-                <span className="text-[10px] font-semibold uppercase tracking-wider">{copiedCards ? "Copied" : "Copy"}</span>
               </button>
               <button
                 onClick={saveCards}
-                className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-emerald-400 group flex items-center gap-2"
+                className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-emerald-400 group"
                 title="Save Cards to File"
               >
                 <Download className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider">Save</span>
               </button>
             </div>
           </div>
@@ -114,11 +110,10 @@ export function ResultsPanel({
             </label>
             <button
               onClick={() => copyToClipboard(currentStory.plotEssentials, setCopiedPlot)}
-              className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-amber-400 group flex items-center gap-2"
+              className="p-1.5 hover:bg-muted rounded-lg transition-all text-muted-foreground hover:text-amber-400 group"
               title="Copy Plot Essentials to Clipboard"
             >
               {copiedPlot ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />}
-              <span className="text-[10px] font-semibold uppercase tracking-wider">{copiedPlot ? "Copied" : "Copy"}</span>
             </button>
           </div>
           <textarea

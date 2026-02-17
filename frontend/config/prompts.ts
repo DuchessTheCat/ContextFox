@@ -36,7 +36,7 @@ In terms of keys (triggers), choose both, triggers of them being mentioned (thei
 - Avoid highly cliche-inducing personality keywords, like possessive or obsessive. Those personalities are fine, just use less strong keywords.
 - Be proactive, feel free to generate interesting new characters inferred to exist from the story.
 - Their purpose is for them to be used by $model to roleplay as the character. Specialize them to $model's quirks.
-- Only send back character story cards you've changed. It is fine and expected that only a few characters are added or changed, or even none at all.`,
+- Only send back character story cards you've changed or created. It is fine and expected that only a few characters are added or changed, or even none at all.`,
 
   locations: `
 Current story cards:
@@ -102,9 +102,8 @@ You are full name, also known as nickname, a colossal white dragon who possesses
 And so forth.
 
 
-- If a previous summary exists, use that as the start of this summary.
-- The final, total summary should always start with the same format of, You are **full name**, **optional nickname line**, **short description** before continuing onto events. Only at the very start - do not repeat that for added parts, do not seperate the added part from the initial part with formatting. It should be one smooth whole.
-- Avoid changing the previous summary other than small additions or clean ups. Simply copy it in full and continue from there. Transcribe it with as little loss of detail as possible.
+- If a previous summary exists, use that as the start of this summary. Preserve exact phrasing — do not rephrase, reword, or 'improve' existing sentences. Simply copy it in full and continue from there, only appending new content and removing explicitly obsoleted information.
+- The final, total summary should always start with the same format of, You are **full name**, **optional nickname line**, **short description** before continuing onto events. Only at the very start - do not repeat that for added parts, do not separate the added part from the initial part with formatting. It should be one smooth whole.
 - Avoid rehashing or describing anything currently in a story card.
 - Keep the summary past tense and second person. Do not describe the current situation.
 `,

@@ -52,24 +52,43 @@ export async function executePerspectiveAndTitle(
   let perspectivePromptWithRefusal = perspectivePrompt;
   let titlePromptWithRefusal = titlePrompt;
 
-  const [resPerspResult, resTitleResult] = await Promise.all([
-    callWithRetry(
-      "perspective",
-      () => callOpenRouter(openrouterKey, perspectiveModel, perspectivePromptWithRefusal, storyContent),
-      refusalPrompt,
-      () => {
-        perspectivePromptWithRefusal = perspectivePrompt + "\n\n" + refusalPrompt;
-      }
-    ),
-    callWithRetry(
-      "title",
-      () => callOpenRouter(openrouterKey, titleModel, titlePromptWithRefusal, storyContent),
-      refusalPrompt,
-      () => {
-        titlePromptWithRefusal = titlePrompt + "\n\n" + refusalPrompt;
-      }
-    ),
-  ]);
+  const tasks = [];
+
+  // Only run perspective task if model is set
+  if (perspectiveModel && perspectiveModel.toLowerCase() !== 'none') {
+    tasks.push(
+      callWithRetry(
+        "perspective",
+        () => callOpenRouter(openrouterKey, perspectiveModel, perspectivePromptWithRefusal, storyContent),
+        refusalPrompt,
+        () => {
+          perspectivePromptWithRefusal = perspectivePrompt + "\n\n" + refusalPrompt;
+        }
+      )
+    );
+  } else {
+    tasks.push(Promise.resolve({ status: 'skipped' as const }));
+    onTaskUpdate({ id: "perspective", status: "completed", output: "Skipped (no model)" });
+  }
+
+  // Only run title task if model is set
+  if (titleModel && titleModel.toLowerCase() !== 'none') {
+    tasks.push(
+      callWithRetry(
+        "title",
+        () => callOpenRouter(openrouterKey, titleModel, titlePromptWithRefusal, storyContent),
+        refusalPrompt,
+        () => {
+          titlePromptWithRefusal = titlePrompt + "\n\n" + refusalPrompt;
+        }
+      )
+    );
+  } else {
+    tasks.push(Promise.resolve({ status: 'skipped' as const }));
+    onTaskUpdate({ id: "title", status: "completed", output: "Skipped (no model)" });
+  }
+
+  const [resPerspResult, resTitleResult] = await Promise.all(tasks);
 
   if (resPerspResult.status === "fulfilled") {
     const res = resPerspResult.value;
@@ -80,13 +99,14 @@ export async function executePerspectiveAndTitle(
     } catch (e) {
       // Keep existing character
     }
-  } else {
+  } else if (resPerspResult.status === "rejected") {
     onTaskUpdate({
       id: "perspective",
       status: "error",
-      output: resPerspResult.reason.toString(),
+      output: resPerspResult.reason?.toString() || "Unknown error",
     });
   }
+  // If status is 'skipped', task was already marked completed
 
   if (resTitleResult.status === "fulfilled") {
     const res = resTitleResult.value;
@@ -97,13 +117,14 @@ export async function executePerspectiveAndTitle(
     } catch (e) {
       // Keep existing title
     }
-  } else {
+  } else if (resTitleResult.status === "rejected") {
     onTaskUpdate({
       id: "title",
       status: "error",
-      output: resTitleResult.reason.toString(),
+      output: resTitleResult.reason?.toString() || "Unknown error",
     });
   }
+  // If status is 'skipped', task was already marked completed
 
   return { character, storyTitle };
 }

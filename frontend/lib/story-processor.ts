@@ -240,8 +240,8 @@ export async function processStory(params: StoryProcessorParams): Promise<StoryP
     }
   };
 
-  // Generate cards and summary - card tasks get full card context, summary gets minimal
-  const { cards: aiGeneratedCards, summary: newSummary } = await executeCardGenerationTasks(
+  // Generate cards and summary - all results written via onTaskComplete callback
+  await executeCardGenerationTasks(
     createTaskDefinitions(
       {
         characters: () => {
@@ -297,13 +297,13 @@ export async function processStory(params: StoryProcessorParams): Promise<StoryP
     openrouterKey,
     refusalPrompt,
     onTaskUpdate,
-    callOpenRouterWithConfig
+    callOpenRouterWithConfig,
+    onTaskComplete
   );
 
+  // Cards are now in central object via onTaskComplete - read from getLastCards
+  const aiGeneratedCards = JSON.parse(getLastCards());
   const finalCards = [...mergeCards(freshRegularCards, aiGeneratedCards), ...freshExcludedCards];
-
-  // Update base variables with NEW summary for plot essentials and core self
-  baseVariables.lastSummary = newSummary;
 
   // Execute plot essentials and core self in parallel
   const parallelTasks: Promise<{ type: "plot" | "coreSelf"; result: any }>[] = [];
@@ -349,7 +349,7 @@ export async function processStory(params: StoryProcessorParams): Promise<StoryP
       executeCoreSelf(
         storyContent,
         finalCards,
-        newSummary,
+        getLastSummary(),
         preparedCoreSelfPrompt,
         coreSelfModel,
         openrouterKey,
@@ -380,13 +380,14 @@ export async function processStory(params: StoryProcessorParams): Promise<StoryP
     }
   }
 
+  // Return ONLY metadata - all actual data is in central object via callbacks
   return {
     story_cards: JSON.stringify(updatedFinalCards, null, 2),
-    summary: newSummary,
-    plot_essentials: newPlotEssentials,
+    summary: getLastSummary(),
+    plot_essentials: getLastPlotEssentials(),
     last_line: newLastLine,
     current_part: newPart,
-    character,
-    story_title: storyTitle,
+    character: getLastCharacter(),
+    story_title: getLastStoryTitle(),
   };
 }

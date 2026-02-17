@@ -14,11 +14,6 @@ interface TaskResult {
   reason?: Error;
 }
 
-export interface CardGenerationResult {
-  cards: StoryCard[];
-  summary: string;
-}
-
 export async function executeCardGenerationTasks(
   tasks: TaskDefinition[],
   storyContent: string,
@@ -28,7 +23,7 @@ export async function executeCardGenerationTasks(
   onTaskUpdate: (update: Partial<Task>) => void,
   callOpenRouter: (key: string, model: string, prompt: string, content: string) => Promise<string>,
   onTaskComplete?: (taskId: string, taskType: string, parsedResult: any) => void
-): Promise<CardGenerationResult> {
+): Promise<void> {
   // Build prompts for UI display NOW
   const taskPrompts = new Map<string, string>();
   tasks.forEach((t) => {
@@ -128,7 +123,7 @@ export async function executeCardGenerationTasks(
   // Execute ALL tasks in parallel
   const allResults = await Promise.all(tasks.map(t => executeTask(t)));
 
-  // Parse and notify ALL results immediately so they go into ref
+  // Parse and notify ALL results via callback - NO return values used
   for (const res of allResults) {
     if (res.status === 'fulfilled' && res.value) {
       if (res.type === 'cards') {
@@ -150,16 +145,4 @@ export async function executeCardGenerationTasks(
   if (summaryResult && summaryResult.status === 'rejected') {
     throw summaryResult.reason;
   }
-
-  // Build cards array from results for return
-  const aiGeneratedCards: StoryCard[] = [];
-  for (const res of allResults) {
-    if (res.status === "fulfilled" && res.value && res.type === "cards") {
-      const cards = parseCardsResponse(res.value);
-      aiGeneratedCards.push(...cards);
-    }
-  }
-
-  // Return the parsed cards AND summary (summary also stored in ref for next part)
-  return { cards: aiGeneratedCards, summary: getLastSummary() };
 }

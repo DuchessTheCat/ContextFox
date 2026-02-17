@@ -183,12 +183,17 @@ function App() {
         console.log('Story update complete for cards');
       } else if (baseTaskId === 'summary') {
         // Summary task
-        console.log('Parsing summary');
+        console.log('Parsing summary - result:', result?.substring(0, 100));
+        console.log('Parsing summary - currentStory.accumulatedSummary:', currentStory.accumulatedSummary?.substring(0, 100));
         const summary = parseSummaryResponse(result, currentStory.accumulatedSummary || "");
         console.log('Parsed summary length:', summary.length);
-        console.log('About to update with summary:', summary.substring(0, 100));
-        updateCurrentStory({ accumulatedSummary: summary });
-        storeRetryValue('summary', summary);
+        if (summary.length > 0) {
+          console.log('About to update with summary:', summary.substring(0, 100));
+          updateCurrentStory({ accumulatedSummary: summary });
+          storeRetryValue('summary', summary);
+        } else {
+          console.error('PARSED SUMMARY IS EMPTY! Not updating.');
+        }
         console.log('Story update complete for summary');
       } else if (baseTaskId === 'plot-essentials') {
         // Plot essentials task

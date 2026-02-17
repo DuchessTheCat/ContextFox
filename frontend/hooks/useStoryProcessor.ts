@@ -48,17 +48,23 @@ export function useStoryProcessor() {
   const [waitingForContinue, setWaitingForContinue] = useState(false);
   const [continueCallback, setContinueCallback] = useState<(() => void) | null>(null);
 
-  // Track which fields were updated via retry during processing
-  const retriedFieldsRef = useRef<Set<string>>(new Set());
+  // CENTRAL SHARED OBJECT - all tasks read from and write to this
+  const currentValuesRef = useRef<{
+    summary: string;
+    cards: string;
+    plotEssentials: string;
+    character: string;
+    storyTitle: string;
+  }>({
+    summary: "",
+    cards: "[]",
+    plotEssentials: "",
+    character: "",
+    storyTitle: ""
+  });
 
-  // Store retry values directly so they're immediately readable (not async like React state)
-  const retriedValuesRef = useRef<{
-    summary?: string;
-    cards?: string;
-    plotEssentials?: string;
-    character?: string;
-    storyTitle?: string;
-  }>({});
+  // Track which task IDs have been manually retried - ignore their original callbacks
+  const retriedTaskIdsRef = useRef<Set<string>>(new Set());
 
   const handleContinue = () => {
     if (continueCallback) {
@@ -78,8 +84,21 @@ export function useStoryProcessor() {
   ): Promise<void> => {
     const currentStory = getCurrentStory();
 
-    // Clear retry tracking for this processing run
-    retriedFieldsRef.current.clear();
+    // Initialize central object from current state at START of processing
+    if (partToProcess === 1) {
+      currentValuesRef.current = {
+        summary: currentStory.accumulatedSummary || "",
+        cards: JSON.stringify(currentStory.accumulatedCards || []),
+        plotEssentials: currentStory.plotEssentials || "",
+        character: currentStory.character || "",
+        storyTitle: currentStory.storyTitle || ""
+      };
+      retriedTaskIdsRef.current.clear();
+      console.log('[INIT] Initialized central object from state:', {
+        summary: currentValuesRef.current.summary.substring(0, 80),
+        cards: `${JSON.parse(currentValuesRef.current.cards).length} cards`
+      });
+    }
 
     try {
       const underlyingModel = getUnderlyingModel(settings.storyModel);
@@ -90,11 +109,11 @@ export function useStoryProcessor() {
         currentPart: partToProcess,
         isZipFile: currentStory.isZipFile || false,
         zipParts: zipPartsMap,
-        getLastSummary: () => retriedValuesRef.current.summary || getCurrentStory().accumulatedSummary,
-        getLastCards: () => retriedValuesRef.current.cards || JSON.stringify(getCurrentStory().accumulatedCards),
-        getLastPlotEssentials: () => retriedValuesRef.current.plotEssentials || getCurrentStory().plotEssentials || "",
-        getLastCharacter: () => retriedValuesRef.current.character || getCurrentStory().character,
-        getLastStoryTitle: () => retriedValuesRef.current.storyTitle || getCurrentStory().storyTitle,
+        getLastSummary: () => currentValuesRef.current.summary,
+        getLastCards: () => currentValuesRef.current.cards,
+        getLastPlotEssentials: () => currentValuesRef.current.plotEssentials,
+        getLastCharacter: () => currentValuesRef.current.character,
+        getLastStoryTitle: () => currentValuesRef.current.storyTitle,
         excludedCardTitles: currentStory.excludedCardTitles || [],
         includedCardTitles: currentStory.includedCardTitles || [],
         openrouterKey: settings.openrouterKey,
@@ -139,57 +158,42 @@ export function useStoryProcessor() {
           });
         },
         onTaskComplete: (taskId: string, taskType: string, parsedResult: any) => {
-          console.log('onTaskComplete called:', taskId, taskType, typeof parsedResult);
+          // Ignore callbacks for tasks that were manually retried
+          if (retriedTaskIdsRef.current.has(taskId)) {
+            console.log('[IGNORE] Ignoring callback for retried task:', taskId);
+            return;
+          }
+
           if (taskType === 'plotEssentials') {
-            retriedValuesRef.current.plotEssentials = parsedResult;
-            console.log('Stored plotEssentials in ref:', parsedResult?.substring(0, 100));
+            currentValuesRef.current.plotEssentials = parsedResult;
+            console.log('[WRITE] Updated plotEssentials:', parsedResult?.substring(0, 80));
           } else if (taskType === 'summary') {
-            retriedValuesRef.current.summary = parsedResult;
-            console.log('Stored summary in ref:', parsedResult?.substring(0, 100));
+            currentValuesRef.current.summary = parsedResult;
+            console.log('[WRITE] Updated summary:', parsedResult?.substring(0, 80));
           } else if (taskType === 'cards') {
-            retriedValuesRef.current.cards = JSON.stringify(parsedResult);
-            console.log('Stored cards in ref, count:', parsedResult.length);
+            currentValuesRef.current.cards = JSON.stringify(parsedResult);
+            console.log('[WRITE] Updated cards:', parsedResult.length, 'cards');
           }
         }
       });
 
-      // Get fresh state to check for retry updates
       const freshStory = getCurrentStory();
-
-      const updatedCards = JSON.parse(result.story_cards);
-      const updatedSummary = result.summary;
-
       const totalParts = zipPartsMap instanceof Map ? zipPartsMap.size : 1;
       const hasMoreParts = freshStory.isZipFile && result.current_part < totalParts;
 
-      // Check retry tracking ref to see which fields were retried
-      const summaryRetried = retriedFieldsRef.current.has('summary');
-      const cardsRetried = retriedFieldsRef.current.has('cards');
-      const plotRetried = retriedFieldsRef.current.has('plot');
-      const characterRetried = retriedFieldsRef.current.has('character');
-      const titleRetried = retriedFieldsRef.current.has('title');
-
-      console.log('Retry detection:', { summaryRetried, cardsRetried, plotRetried, characterRetried, titleRetried });
-      console.log('retriedValuesRef.current:', {
-        summary: retriedValuesRef.current.summary?.substring(0, 100),
-        cards: retriedValuesRef.current.cards ? 'present' : 'missing',
-        plotEssentials: retriedValuesRef.current.plotEssentials?.substring(0, 100),
-        character: retriedValuesRef.current.character,
-        storyTitle: retriedValuesRef.current.storyTitle,
-      });
-      console.log('updatedSummary:', updatedSummary?.substring(0, 100));
-
+      // Read from central object and save to state
       const updates: Partial<StoryState> = {
-        accumulatedCards: cardsRetried ? JSON.parse(retriedValuesRef.current.cards || '[]') : updatedCards,
-        accumulatedSummary: summaryRetried ? retriedValuesRef.current.summary : updatedSummary,
-        plotEssentials: plotRetried ? retriedValuesRef.current.plotEssentials : result.plot_essentials,
-        character: characterRetried ? retriedValuesRef.current.character : result.character,
-        storyTitle: titleRetried ? retriedValuesRef.current.storyTitle : result.story_title,
+        accumulatedCards: JSON.parse(currentValuesRef.current.cards),
+        accumulatedSummary: currentValuesRef.current.summary,
+        plotEssentials: currentValuesRef.current.plotEssentials,
+        character: currentValuesRef.current.character,
+        storyTitle: currentValuesRef.current.storyTitle,
         lastLine: result.last_line,
         currentPart: result.current_part,
-        name: (titleRetried ? retriedValuesRef.current.storyTitle : result.story_title) || freshStory.name
+        name: currentValuesRef.current.storyTitle || freshStory.name
       };
 
+      console.log('[SAVE] Saving to state - summary:', updates.accumulatedSummary?.substring(0, 80), 'cards:', updates.accumulatedCards.length);
       updateCurrentStory(updates);
 
       if (hasMoreParts) {
@@ -318,20 +322,14 @@ export function useStoryProcessor() {
         t.id === taskId ? { ...t, status: 'completed' as const, output: result } : t
       ));
 
-      // Mark which field was retried so we can preserve it at the end
-      const baseTaskId = taskId.split(' ')[0]; // Strip part number
-      if (baseTaskId === 'summary') retriedFieldsRef.current.add('summary');
-      else if (baseTaskId === 'characters' || baseTaskId === 'locations' || baseTaskId === 'concepts') retriedFieldsRef.current.add('cards');
-      else if (baseTaskId === 'plot-essentials') retriedFieldsRef.current.add('plot');
-      else if (baseTaskId === 'perspective') retriedFieldsRef.current.add('character');
-      else if (baseTaskId === 'title') retriedFieldsRef.current.add('title');
+      // Mark this task as retried so original callback is ignored
+      retriedTaskIdsRef.current.add(taskId);
+      console.log('[RETRY] Marked task as retried:', taskId);
 
-      console.log('Marked retried:', baseTaskId, 'Current set:', Array.from(retriedFieldsRef.current));
-
-      // Apply story updates based on task type AND store in ref
+      // Write to central object
       const storeRetryValue = (field: string, value: any) => {
-        console.log('Storing retry value in ref:', field, typeof value === 'string' ? value.substring(0, 100) : value);
-        (retriedValuesRef.current as any)[field] = value;
+        console.log('[WRITE] Retry updated', field, ':', typeof value === 'string' ? value.substring(0, 80) : value);
+        (currentValuesRef.current as any)[field] = value;
       };
       onStoryUpdate(taskId, result, storeRetryValue);
 
