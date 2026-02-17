@@ -57,7 +57,7 @@ export function mergeCards(
       if (newCard.value !== undefined) existing.value = newCard.value;
       if (newCard.type !== undefined) existing.type = newCard.type;
       if (newCard.description !== undefined) existing.description = newCard.description;
-      if (newCard.core_self !== undefined) existing.core_self = newCard.core_self;
+      // Note: core_self is stored INSIDE description, not as a separate field
     } else {
       // New card - add it
       merged.push(newCard);
