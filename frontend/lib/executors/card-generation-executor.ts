@@ -79,7 +79,9 @@ export async function executeCardGenerationTasks(
           });
         }
 
-        const res = await callOpenRouter(openrouterKey, t.model, currentPrompt, storyContent);
+        // Wrap story content to make it clear it's for reference, not to continue
+        const wrappedContent = `[Story content for context - do not continue this story, follow the instructions in the system prompt instead]\n\n${storyContent}`;
+        const res = await callOpenRouter(openrouterKey, t.model, currentPrompt, wrappedContent);
 
         // Check for empty response on critical tasks
         const isCriticalTask = t.type === "summary";

@@ -52,9 +52,14 @@ export function mergeCards(
   for (const newCard of newCards) {
     const existing = merged.find((c) => c.title === newCard.title);
     if (existing) {
-      existing.keys = newCard.keys;
-      existing.value = newCard.value;
+      // Only update fields that are present in newCard, keep old values for missing fields
+      if (newCard.keys !== undefined) existing.keys = newCard.keys;
+      if (newCard.value !== undefined) existing.value = newCard.value;
+      if (newCard.type !== undefined) existing.type = newCard.type;
+      if (newCard.description !== undefined) existing.description = newCard.description;
+      if (newCard.core_self !== undefined) existing.core_self = newCard.core_self;
     } else {
+      // New card - add it
       merged.push(newCard);
     }
   }

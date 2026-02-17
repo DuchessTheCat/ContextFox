@@ -52,6 +52,9 @@ export async function executePerspectiveAndTitle(
   let perspectivePromptWithRefusal = perspectivePrompt;
   let titlePromptWithRefusal = titlePrompt;
 
+  // Wrap story content to make it clear it's for reference, not to continue
+  const wrappedContent = `[Story content for context - do not continue this story, follow the instructions in the system prompt instead]\n\n${storyContent}`;
+
   const tasks = [];
 
   // Only run perspective task if model is set
@@ -59,7 +62,7 @@ export async function executePerspectiveAndTitle(
     tasks.push(
       callWithRetry(
         "perspective",
-        () => callOpenRouter(openrouterKey, perspectiveModel, perspectivePromptWithRefusal, storyContent),
+        () => callOpenRouter(openrouterKey, perspectiveModel, perspectivePromptWithRefusal, wrappedContent),
         refusalPrompt,
         () => {
           perspectivePromptWithRefusal = perspectivePrompt + "\n\n" + refusalPrompt;
@@ -76,7 +79,7 @@ export async function executePerspectiveAndTitle(
     tasks.push(
       callWithRetry(
         "title",
-        () => callOpenRouter(openrouterKey, titleModel, titlePromptWithRefusal, storyContent),
+        () => callOpenRouter(openrouterKey, titleModel, titlePromptWithRefusal, wrappedContent),
         refusalPrompt,
         () => {
           titlePromptWithRefusal = titlePrompt + "\n\n" + refusalPrompt;

@@ -10,6 +10,7 @@ import { applySplitting, getMinimumContextLength, getSplitStatusMessage } from "
 import { getUnderlyingModel } from "../lib/model-mapping";
 import { ModelConfig, getModelConfig } from "../types/modelConfig";
 import { callOpenRouter as apiCallOpenRouter } from "../lib/api/api-client";
+import { mergeCards } from "../lib/utils/card-filtering";
 
 interface ProcessorSettings {
   storyModel: string;
@@ -171,8 +172,11 @@ export function useStoryProcessor() {
             currentValuesRef.current.summary = parsedResult;
             console.log('[WRITE] Updated summary:', parsedResult?.substring(0, 80));
           } else if (taskType === 'cards') {
-            currentValuesRef.current.cards = JSON.stringify(parsedResult);
-            console.log('[WRITE] Updated cards:', parsedResult.length, 'cards');
+            // MERGE new cards with existing cards in central object
+            const existingCards = JSON.parse(currentValuesRef.current.cards || '[]');
+            const mergedCards = mergeCards(existingCards, parsedResult);
+            currentValuesRef.current.cards = JSON.stringify(mergedCards);
+            console.log('[WRITE] Merged cards - had:', existingCards.length, 'new:', parsedResult.length, 'total:', mergedCards.length);
           }
         }
       });

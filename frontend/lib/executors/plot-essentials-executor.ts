@@ -35,9 +35,12 @@ export async function executePlotEssentials(
 
   let plotPromptWithRefusal = plotPrompt;
 
+  // Wrap story content to make it clear it's for reference, not to continue
+  const wrappedContent = `[Story content for context - do not continue this story, follow the instructions in the system prompt instead]\n\n${storyContent}`;
+
   const result = await callWithRetry(
     "plot essentials",
-    () => callOpenRouter(openrouterKey, plotEssentialsModel, plotPromptWithRefusal, storyContent),
+    () => callOpenRouter(openrouterKey, plotEssentialsModel, plotPromptWithRefusal, wrappedContent),
     refusalPrompt,
     () => {
       plotPromptWithRefusal = plotPrompt + "\n\n" + refusalPrompt;
