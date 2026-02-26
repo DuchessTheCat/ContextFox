@@ -11,10 +11,6 @@ export const DEFAULT_PROMPTS = {
   title: "Choose a fitting title for this story.",
 
   characters: `
-Current story cards:
-$cards
-
-
 Update the above story cards or write new ones for AI Dungeon for each character in the referenced story. Keep them ideal for LLM consumption, 1000 chars at most but the less the better. Use strong personality keywords opposed to complex personality descriptors. E.g. Kind-hearted, sweet, unforgiving, no buts or whens or anything there.
 
 Write the story cards like so:
@@ -36,12 +32,14 @@ In terms of keys (triggers), choose both, triggers of them being mentioned (thei
 - Avoid highly cliche-inducing personality keywords, like possessive or obsessive. Those personalities are fine, just use less strong keywords.
 - Be proactive, feel free to generate interesting new characters inferred to exist from the story.
 - Their purpose is for them to be used by $model to roleplay as the character. Specialize them to $model's quirks.
-- Only send back character story cards you've changed or created. It is fine and expected that only a few characters are added or changed, or even none at all.`,
-
-  locations: `
+- Only send back character story cards you've changed or created. It is fine and expected that only a few characters are added or changed, or even none at all.
+  
+ 
 Current story cards:
 $cards
+`,
 
+  locations: `
 Based on the story given, update story cards that have meaningfully changed and generate new story cards for major, future-relevant locations. Always include the location name in the description of the location one or more times.
 
 In terms of keys (triggers), choose both, triggers of words in the location name (their first name for example) AND triggers of likely words to come up relevant to this location (e.g. war, france, palace, home, hospital, winter). Use at minimum 3 triggers per cards, but around 10 is usually better.
@@ -51,13 +49,14 @@ In terms of keys (triggers), choose both, triggers of words in the location name
 - Never make cards for characters or factions.
 - Specialize it for $model.
 - Keep them to at most 1000 characters, but ideally they are much smaller than that.
-- Only send back location story cards you've changed. It is fine and expected that only a few locations are added or changed, or even none at all.\`,
+- Only send back location story cards you've changed. It is fine and expected that only a few locations are added or changed, or even none at all.
+
+
+Current story cards:
+$cards
 `,
 
   concepts: `
-Current story cards:
-$cards
-
 Based on the story, generate story cards for new concepts (such as a magic system) that are important for the story and different from the real world / common tropes or major factions, or update existing ones if necessary.
 
 In terms of keys (triggers), choose both, triggers of words in the concept/faction name (their first name for example) AND triggers of likely words to come up relevant to this card (e.g. war, france, palace, magic, mana, winter, leader's first name, kingdom name). Use at minimum 3 triggers per cards, but around 10 is usually better.
@@ -67,16 +66,13 @@ In terms of keys (triggers), choose both, triggers of words in the concept/facti
 - Never make cards for characters or locations.
 - Specialize it for $model.
 - Only send back concept/faction story cards you've changed. It is fine and expected that only a few concepts / factions are added or changed, or even none at all.
+
+
+Current story cards:
+$cards
 `,
 
   summary: `
-Story Cards:
-$cards
-
-Previous Summary:
-$lastSummary
-
-
 Based the given text, make / add to a concise summary for an AI roleplaying game, from the perspective of $character in second person past tense.
 
 The summary should be complete, with no RELEVANT dataloss.
@@ -102,45 +98,71 @@ You are full name, also known as nickname, a colossal white dragon who possesses
 And so forth.
 
 
-- If a previous summary exists, use that as the start of this summary. Preserve exact phrasing — do not rephrase, reword, or 'improve' existing sentences. Simply copy it in full and continue from there, only appending new content and removing explicitly obsoleted information.
-- The final, total summary should always start with the same format of, You are **full name**, **optional nickname line**, **short description** before continuing onto events. Only at the very start - do not repeat that for added parts, do not separate the added part from the initial part with formatting. It should be one smooth whole.
+- If a previous summary exists, use that as the start of this summary.
+- The final, total summary should always start with the same format of, You are **full name**, **optional nickname line**, **short description** before continuing onto events. Only at the very start - do not repeat that for added parts, do not seperate the added part from the initial part with formatting. It should be one smooth whole.
+- Copy the previous summary verbatim as your starting point. Do not rephrase, reword, or 'improve' any existing sentences. Then append your new summary content after it.
 - Avoid rehashing or describing anything currently in a story card.
 - Keep the summary past tense and second person. Do not describe the current situation.
+
+
+Story Cards:
+$cards
+
+Previous Summary:
+$lastSummary
 `,
 
-  plotEssentials: `Based on the story content, create a plot essentials text to track current statuses / plots and expected events relevant for future plot development.
+  plotEssentials: `Based on the story content, create a plot essentials document for an AI roleplaying game from the perspective of $character.
 
-Include:
-- Active plot threads and unresolved conflicts
-- Important promises, debts, or obligations
-- Significant mysteries or questions raised
-- Critical world state changes or consequences
-- Foreshadowed events or Chekhov's guns
-- Inventory, possessions, money
-- Important world rules
-- Likely or interesting random events for the future
+Include the following sections:
 
-Format this in markdown text. Focus on actionable elements that $model should remember and potentially reference or resolve in future story generation.
+**Description:** Physical appearance of $character, including their full name. Be specific and detailed.
+
+**Marks & Scars:** Distinguishing physical features that another character would notice or that affect how $character is perceived — scars, tattoos, magical sigils, brands, birthmarks, unusual features. Skip minor or cosmetic details.
+
+**Outfit:** Current clothing and accessories in detail.
+
+**Abilities:** If $character has notable abilities, powers, or skills beyond what's normal for their world, document them here with how they work. Omit this section if $character has no special abilities.
+
+**Inventory & Wealth:** Items $character currently carries or has immediate access to, plus current money. Be specific with quantities. Also note significant owned property, land, or assets if any.
+
+**Economy:** If the story uses a non-Earth currency system, document conversion rates between all denominations (e.g. 1 gold = 100 silver = 10,000 bronze). Then list practical prices across everyday costs (meals, lodging, a day's labor), equipment (weapons, armor, a mount), and major purchases (property, a ship, a business). List every price in all denominations (e.g. a riding horse costs 5 silver / 500 bronze / 0.05 gold). Infer sensible prices for common goods not explicitly stated in the story.
+
+**Active Plot Threads:** Current conflicts, negotiations, confrontations, and unresolved situations. State what happened and where things stand factually.
+Example: "The merchant offered a deal at half price but required an exclusive contract. You refused." NOT "The greedy merchant tried to trap you into a predatory arrangement."
+
+**Key Relationship Statuses:** How $character currently stands with important NPCs. For each: name, role or who they are, and current disposition toward $character in one or two lines.
+
+**Unresolved Questions:** Mysteries, unanswered decisions, and things $character needs to figure out.
+
+**World Rules & Concepts:** Magic systems, political structures, or world mechanics that differ from common tropes or the real world. Include both rules explicitly stated in the story and rules strongly implied by how the world works (e.g. if true names are shown to hold power over someone, document that as a rule even if no character explicitly explains it).
+
+**Foreshadowed Events & Likely Developments:** Chekhov's guns, promised consequences, and events likely to happen soon.
+
+**Potential Events:** Generate 4-6 one-liner event ideas that could plausibly occur given the current story state. These should be nudges, not scripts — just enough for $model to run with. Range widely: ambushes, chance encounters, economic opportunities, political shifts, misfortune, unexpected allies, discoveries, reunions, natural events.
+
+Rules:
+- Write in concise, factual statements. No narrative analysis or editorializing.
+- Format in markdown with the section headers above.
+- Focus on what $model needs to remember to generate the next part of the story correctly.
 `,
 
   plotEssentialsWithContext: `Current Plot Essentials:
 $lastPlotEssentials
 
-Based on the new story content, update the plot essentials above. Remove any information that has been resolved or are no longer relevant, update existing information if it has changed, and add new information that emerged.
+Based on the new story content, update the plot essentials above.
 
-Include:
-- Active plot threads and unresolved conflicts
-- Important promises, debts, or obligations
-- Significant mysteries or questions raised
-- Critical world state changes or consequences
-- Foreshadowed events or Chekhov's guns
-- Inventory, possessions, money
-- Important world rules
-- Likely or interesting random events for the future
+Rules for updating:
+- **Preserve existing content by default.** Do not rephrase, reword, or 'improve' entries that haven't changed. Copy them exactly.
+- **Within sections, preserve unchanged entries exactly** and only modify the specific entries that the story made outdated.
+- **Adjust entries only when the story has made them genuinely outdated.** A new outfit replaces the old outfit. A new ability gets added. Money spent gets subtracted.
+- **Add new entries** for new plot threads, relationships, items, world rules, or foreshadowed events that emerged.
+- **Remove entries** only when they are fully resolved and no longer relevant.
+- **Potential Events:** Refresh this section each update. Remove events that have occurred or are no longer plausible, keep ones still relevant, and generate new ones to maintain 4-6 varied one-liner event ideas grounded in the current story state.
+- Do not editorialize. State what happened factually, not why characters did things or what they're feeling.
+- Do not rewrite stable sections like Description, Economy, or World Rules unless the story explicitly changed them.
 
-Format this in markdown text. Focus on actionable elements that $model should remember and potentially reference or resolve in future story generation.
-
-Include the full plot essentials text.`,
+Return the full updated plot essentials with all sections.`,
 
   coreSelf: `Story Summary:
 $lastSummary
@@ -157,5 +179,5 @@ Only return Brain cards that need their core_self updated or added. Each card sh
 - title: The exact card title
 - core_self: The concise 2-4 sentence core self description
 
-Never include current status or a recent event unless it profoundly changed their way of thinking.`,
+Core Self is for PRODUCING FUTURE THOUGHTS. Avoid any current or past events or short term goals being directly alluded.`,
 };

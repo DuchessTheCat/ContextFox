@@ -17,33 +17,30 @@ export function applyCoreSelfUpdates(
 
     let existingDesc = card.description || "";
 
-    // Try parsing as JSON first
-    try {
-      const descJson = JSON.parse(existingDesc);
-      if (typeof descJson === "object" && descJson !== null) {
-        descJson.core_self = update.core_self;
-        return { ...card, description: JSON.stringify(descJson) };
-      }
-    } catch (e) {
-      // Not JSON, treat as plain text
-    }
-
-    // Plain text description - remove existing core_self if present
+    // Description is ALWAYS plain text - remove existing core_self if present at the start
     if (existingDesc.startsWith("core_self:")) {
       const blankLineMatch = existingDesc.match(/\n\s*\n/);
       if (blankLineMatch && blankLineMatch.index !== undefined) {
+        // Remove everything from start up to and including the blank line
         existingDesc = existingDesc.substring(
           blankLineMatch.index + blankLineMatch[0].length
         );
       } else {
-        existingDesc = "";
+        // core_self: line exists but no blank line after - remove just the first line
+        const newlineMatch = existingDesc.match(/\n/);
+        if (newlineMatch && newlineMatch.index !== undefined) {
+          existingDesc = existingDesc.substring(newlineMatch.index + 1);
+        } else {
+          // Only core_self line exists, nothing after
+          existingDesc = "";
+        }
       }
     }
 
-    // Add new core_self at the top
+    // Always add new core_self at the top with blank line after
     const newDescription = existingDesc
       ? `core_self: ${update.core_self}\n\n${existingDesc}`
-      : `core_self: ${update.core_self}`;
+      : `core_self: ${update.core_self}\n\n`;
 
     return { ...card, description: newDescription };
   });

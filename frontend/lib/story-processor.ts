@@ -191,6 +191,12 @@ export async function processStory(params: StoryProcessorParams): Promise<StoryP
     character = result.character;
     storyTitle = result.storyTitle;
 
+    // Write to central object via onTaskComplete
+    if (onTaskComplete) {
+      if (character) onTaskComplete('perspective', 'character', character);
+      if (storyTitle) onTaskComplete('title', 'storyTitle', storyTitle);
+    }
+
     // Update base variables with newly detected character/title
     baseVariables.character = character;
     baseVariables.storyTitle = storyTitle;
@@ -376,7 +382,10 @@ export async function processStory(params: StoryProcessorParams): Promise<StoryP
       }
     } else if (result.type === "coreSelf") {
       updatedFinalCards = result.result;
-      // Core self updates cards, already handled by card onTaskComplete
+      // Write updated cards with core_self to central object
+      if (onTaskComplete) {
+        onTaskComplete('core-self', 'cards', updatedFinalCards);
+      }
     }
   }
 

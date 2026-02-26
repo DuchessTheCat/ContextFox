@@ -177,6 +177,12 @@ export function useStoryProcessor() {
             const mergedCards = mergeCards(existingCards, parsedResult);
             currentValuesRef.current.cards = JSON.stringify(mergedCards);
             console.log('[WRITE] Merged cards - had:', existingCards.length, 'new:', parsedResult.length, 'total:', mergedCards.length);
+          } else if (taskType === 'character') {
+            currentValuesRef.current.character = parsedResult;
+            console.log('[WRITE] Updated character:', parsedResult);
+          } else if (taskType === 'storyTitle') {
+            currentValuesRef.current.storyTitle = parsedResult;
+            console.log('[WRITE] Updated storyTitle:', parsedResult);
           }
         }
       });
@@ -312,12 +318,15 @@ export function useStoryProcessor() {
         reasoningEffort: config.reasoningEffort,
       };
 
+      // Wrap content for retry just like initial execution
+      const wrappedContent = `[Story content for context - do not continue this story, follow the instructions in the system prompt instead]\n\n${task.userContent}`;
+
       // Call API
       const result = await apiCallOpenRouter(
         openrouterKey,
         task.model,
         systemPrompt,
-        task.userContent,
+        wrappedContent,
         options
       );
 

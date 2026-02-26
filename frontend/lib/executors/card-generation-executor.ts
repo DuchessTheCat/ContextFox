@@ -81,6 +81,7 @@ export async function executeCardGenerationTasks(
 
         // Wrap story content to make it clear it's for reference, not to continue
         const wrappedContent = `[Story content for context - do not continue this story, follow the instructions in the system prompt instead]\n\n${storyContent}`;
+        console.log(`[API CALL] Sending wrapped content (${wrappedContent.length} chars) - starts with:`, wrappedContent.substring(0, 120));
         const res = await callOpenRouter(openrouterKey, t.model, currentPrompt, wrappedContent);
 
         // Check for empty response on critical tasks
